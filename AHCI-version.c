@@ -13,9 +13,11 @@
 //estructura de datos donde meter los datos del AHCI
 struct lapic_info {
 	uint32_t reservado[8];
-	uint32_t ID;
-	uint32_t relleno[3];
-	uint32_t version; // nº versión: 8 bits de menor peso
+	uint16_t minor;
+	uint16_t major;
+	//uint32_t ID;
+	//uint32_t relleno[3];
+	//uint32_t version; // nº versión: 8 bits de menor peso
 };
 
 int main(int argc, char *argv[]) {
@@ -55,8 +57,10 @@ int main(int argc, char *argv[]) {
 		return 1; 
 	}
 
+
 	printf("Acceso dir física %lx usando %p\n", num, lapic);
-	printf("Local APIC ID: %d Versión %d\n", lapic->ID, lapic->version&0xFF);
+	printf("test minor: %d major: %d\n", lapic->minor, lapic->major);
+	//printf("Local APIC ID: %d Versión %d\n", lapic->ID, lapic->version&0xFF);
 
 	close(fd); 
 	munmap((void *)lapic, tam);
