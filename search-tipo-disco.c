@@ -16,7 +16,7 @@
 
 /*comandos
 sudo ./programacion_dispositivos/programas/getPCI-b0-s0-f0 1 6 1
-sudo lspci -ns 00:00.0
+sudo lspci -nns 00:00.0
 */
 int main(int argc, char *argv[]) {
 
@@ -27,8 +27,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	//variables locales
-	uint32_t dir, dat, clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]); 
-	int vend, prod;
+	uint32_t dir, dat; //poner aqui las variables para leer cosas ¿struct?
+	int vend, prod, clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]);
 
 	// permiso para acceso a los 2 puertos modo usuario
 	if (ioperm(CONFIG_DIR, 8, 1) < 0) { 
@@ -38,10 +38,10 @@ int main(int argc, char *argv[]) {
 
 
 	// al ser bus 0, slot 0, función 0 y registro 0 basta con especificar el "enable" bit
-	dir = (uint32_t) 0x83000000;
+	dir = (uint32_t) 0x80000900;
 
     outl (dir, CONFIG_DIR);
-	dat = inl(CONFIG_DAT);
+	dat = inl(CONFIG_DAT); //hacemos la lectura del registro offset 0, hay mas que leer
 
 	if (dat == 0xFFFFFFFF) {
 		fprintf(stderr, "no existe ese dispositivo\n"); 
