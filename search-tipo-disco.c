@@ -21,15 +21,19 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	if (ioperm(CONFIG_DIR, 8, 1) < 0) { // permiso para acceso a los 2 puertos modo usuario
+	//variables locales
+	uint32_t dir, dat, clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]); 
+	int vend, prod;
+
+	// permiso para acceso a los 2 puertos modo usuario
+	if (ioperm(CONFIG_DIR, 8, 1) < 0) { 
         perror("ioperm"); 
 		return 1;
     }
-    uint32_t dir, dat; 
-	int vend, prod;
+
 
 	// al ser bus 0, slot 0, función 0 y registro 0 basta con especificar el "enable" bit
-	dir = (uint32_t) 0x80000000;
+	dir = (uint32_t) 0x80000000; //cambiar, necesitamos los arg
 
     outl (dir, CONFIG_DIR); dat = inl(CONFIG_DAT);
 
@@ -41,6 +45,11 @@ int main(int argc, char *argv[]) {
 	vend = dat & 0x0000FFFF; 
 	prod = dat >> 16; // extrae vendedor y producto
 
-	printf("Bus 0 Slot 0 Función 0: ID Vendedor %x ID Producto %x\n", vend, prod);
+	//imprimir datos
+	printf("Clase: %d | Subclase %d | Interfaz %d\n", clase, subclase, interfaz);
+	printf("Bus 0 | Slot 0 | Función 0 | Fabricante %x | Modelo %x\n",
+		vend, prod);
+	printf("BAR0-IO 0 | BAR1-IO 0 | BAR2-IO 0 | BAR3-IO 0 | BAR4-IO 0 | BAR5-IO 0\n");//bucle
+
 	return 0;
 } 
