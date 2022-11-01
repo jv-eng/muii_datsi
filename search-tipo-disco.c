@@ -14,6 +14,13 @@
 // Si se escribe en CONFIG_DAT se modifica contenido de registro especificado en CONFIG_DIR
 
 int main(int argc, char *argv[]) {
+
+	//comprobar argumentos
+	if (argc != 4) {
+		printf("Introduzca argumentos.\n");
+		return -1;
+	}
+
 	if (ioperm(CONFIG_DIR, 8, 1) < 0) { // permiso para acceso a los 2 puertos modo usuario
         perror("ioperm"); 
 		return 1;
