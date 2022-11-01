@@ -13,6 +13,11 @@
 // Si se lee de CONFIG_DAT se obtiene contenido de registro especificado en CONFIG_DIR
 // Si se escribe en CONFIG_DAT se modifica contenido de registro especificado en CONFIG_DIR
 
+
+/*comandos
+sudo ./programacion_dispositivos/programas/getPCI-b0-s0-f0 1 6 1
+sudo lspci -ns 00:00.0
+*/
 int main(int argc, char *argv[]) {
 
 	//comprobar argumentos
@@ -33,9 +38,10 @@ int main(int argc, char *argv[]) {
 
 
 	// al ser bus 0, slot 0, función 0 y registro 0 basta con especificar el "enable" bit
-	dir = (uint32_t) 0x80000000; //cambiar, necesitamos los arg
+	dir = (uint32_t) 0x83000000;
 
-    outl (dir, CONFIG_DIR); dat = inl(CONFIG_DAT);
+    outl (dir, CONFIG_DIR);
+	dat = inl(CONFIG_DAT);
 
 	if (dat == 0xFFFFFFFF) {
 		fprintf(stderr, "no existe ese dispositivo\n"); 
