@@ -5,35 +5,120 @@
 #include <stdlib.h>
 
 #define CONFIG_DIR 0xCF8
-/* en CONFIG_DIR se especifica dir. a leer/escribir: bus|slot|func|registro con el formato:
-|    31    |(30-24) |(23-16)|(15-11)  |(10-8)     |(7-2)      |(1-0)| 
-|Enable Bit|Reserved|BusNum |DeviceNum|FunctionNum|RegisterNum| 0 0 |    */
-
 #define CONFIG_DAT 0xCFC
-// Si se lee de CONFIG_DAT se obtiene contenido de registro especificado en CONFIG_DIR
-// Si se escribe en CONFIG_DAT se modifica contenido de registro especificado en CONFIG_DIR
 
-void buscar_dispositivo(int clase, int subclase, int interfaz);
+//declaracion de funciones
+void buscar_bus(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado);
+void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz);
+void imprimir_info(uint32_t dir);
 
+//imprimir informacion
+void imprimir_info(uint32_t dir) {
+	uint32_t dir_check, info_device, info_class, bar;
+	int i;
 
-void buscar_dispositivo(int clase, int subclse, int interfaz) {
-	// permiso para acceso a los 2 puertos modo usuario
-	if (ioperm(CONFIG_DIR, 8, 1) < 0) { 
-        perror("ioperm"); 
-		//return 1;
-    }
+	//obtenemos la posicion del bus
+	dir_check = dir;
+	printf("Bus 0x%x Slot 0x%x Func 0x%x", (dir_check & 0xFF0000) >> 16, (dir_check & 0xF800) >> 11, (dir_check & 0x700) >> 8);
 
+	//obtener el id del dispositivo y del vendedor
+	dir_check =  dir;
+	outl (dir_check, CONFIG_DIR);
+	info_device = inl(CONFIG_DAT);
+	printf("Vendedor 0x%x Producto 0x%x", info_device & 0x0000FFFF, info_device >> 16);
+
+	//obtenemos informacion de clase, subclase, interfaz
+	dir_check = dir + (uint32_t)0x8;
+	outl (dir_check, CONFIG_DIR);
+	info_class = inl(CONFIG_DAT);
+	printf("Clase 0x%x Subclase 0x%x Interfaz 0x%x", (info_class & 0xFF000000) >> 24, (info_class & 0x00FF0000) >> 16, (info_class & 0xFF00) >> 8);
+	
+	//obtenemos informacion de los BAR
+	dir_check = dir + 0x10;
+	for (i = 0; i < 6; i++) {
+		outl (dir_check, CONFIG_DIR);
+		bar = inl(CONFIG_DAT);
+
+		if ((bar & 0xFFFF0000) != 0x0) { //MMIO
+			printf("BAR%d-Mem 0x%x", i, bar);
+		} else { //PIO
+			printf("BAR%d-IO 0x%x", i, bar);
+		}
+
+		dir_check = dir + (uint32_t)0x4;
+	}
+	
+	//salto de linea
+	printf("\n");
+}
+
+//realiza la busqueda de un dispositvo PCI
+void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	//variables locales
-	uint32_t dir, dir_check, dat;
+	uint32_t dir_check, dir_pci, dat;
+	int encontrado = 0;
 
 	//iniciamos por el primer dispostivo
-	dir = (uint32_t) 0x80000000;
-	dir_check = (uint32_t)(0x80000000);// | (uint32_t)0x8);
+	dir_check = (uint32_t)(dir + (uint32_t)0xc);
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
 	//printf("%x\n\n", dat >> 24);
 
 	while (dat != 0xFFFFFFFF) {
+
+		//comprobamos el tipo de bus
+		dat = (dat & 0x00FF0000) >> 23;
+		if (dat) { //es un PCI-PCI
+			dir_pci = (dir_check - 0xc) + 0x100;
+			outl (dir_pci, CONFIG_DIR);
+			dat = inl(CONFIG_DAT);
+			
+			while (dat != 0xFFFFFFFF) {
+				buscar_bus(dir_pci, clase, subclase, interfaz, &encontrado);
+				dir_pci = dir_pci + 0x100;
+				outl (dir_pci, CONFIG_DIR);
+				dat = inl(CONFIG_DAT);
+			}
+			
+		} else { //no es un PCI-PCI
+			buscar_bus(dir_check - 0xc, clase, subclase, interfaz, &encontrado);
+		}
+		
+		if (encontrado) {
+			return;
+		}
+
+		//siguiente iteracion
+		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
+		outl (dir_check, CONFIG_DIR);
+		dat = inl(CONFIG_DAT);
+	}
+
+}
+
+//realiza la busqueda de un dispositivo dentro de un PCI-PCI
+void buscar_bus(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado) {
+
+	//variables locales
+	uint32_t dir_check, dat;
+	uint8_t class, subclass, interface;
+
+	//iniciamos por el primer dispostivo
+	dir_check = (uint32_t)(dir + (uint32_t)0x8);
+	outl (dir_check, CONFIG_DIR);
+	dat = inl(CONFIG_DAT);
+	//printf("%x\n\n", dat >> 24);
+
+	while (dat != 0xFFFFFFFF) {
+
+		//obtener datos
+		class = (dat & 0xFF000000) >> 24;
+		subclass = (dat & 0x00FF0000) >> 16;
+		interface = (dat & 0x0000FF00) >> 8;
+
+		if (class == clase && subclass == subclase && interface == interfaz) { //dispositivo encontrado
+			
+		}
 		
 		
 		printf("%x\n",dir_check);
@@ -42,7 +127,6 @@ void buscar_dispositivo(int clase, int subclse, int interfaz) {
 		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
 		outl (dir_check, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
-		
 	}
     
 
@@ -69,8 +153,38 @@ int main(int argc, char *argv[]) {
 	}
 
 	//variables locales
-	int vend, prod, clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]);
-	buscar_dispositivo(clase, subclase, interfaz);
+	int clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]);
+	
+	//iteramos sobre el dominio
+	// permiso para acceso a los 2 puertos modo usuario
+	if (ioperm(CONFIG_DIR, 8, 1) < 0) { 
+        perror("ioperm"); 
+		return 1;
+    }
+
+	//variables locales
+	uint32_t dir_check, dat;
+
+	//iniciamos por el primer dispostivo
+	/*TODO: quitar, esta debe ser la inicial*/
+	//dir = dir_check = (uint32_t) 0x80000000;
+	dir_check = (uint32_t) 0x80003800;
+	outl (dir_check, CONFIG_DIR);
+	dat = inl(CONFIG_DAT);
+
+	while (dat != 0xFFFFFFFF) {
+		//buscar en ese dominio
+		buscar_funcion(dir_check, clase, subclase, interfaz);
+
+		//siguiente dominio
+		dir_check = (uint32_t)(0x80000000 + (uint32_t)0x10000);
+		outl (dir_check, CONFIG_DIR);
+		dat = inl(CONFIG_DAT);
+	}
+
+	if (dat == 0xFFFFFFFF) {
+		printf("fin\n");
+	}
 
 	//imprimir datos
 	//printf("Clase: %d | Subclase %d | Interfaz %d\n", clase, subclase, interfaz);
