@@ -2,10 +2,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+
+#define CONFIG_DAT 0xCFC
+#define CONFIG_DIR 0xCF8
+
 
 //estructura de datos donde meter los datos del AHCI
 struct lapic_info {
@@ -38,6 +43,10 @@ int main(int argc, char *argv[]) {
 		//decimal
 		num = strtoul(argv[1],NULL,0);
 	}
+
+		if (ioperm(CONFIG_DIR, 8, 1) < 0) { // permiso para acceso a los 2 puertos modo usuario
+                perror("ioperm"); return 1;
+        }
 
 	//abrir fichero /dev/mem
 	if ((fd = open("/dev/mem", O_RDONLY|O_DSYNC)) < 0) {
