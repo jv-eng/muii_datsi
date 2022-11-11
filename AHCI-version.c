@@ -44,9 +44,10 @@ int main(int argc, char *argv[]) {
 		num = strtoul(argv[1],NULL,0);
 	}
 
-		if (ioperm(CONFIG_DIR, 8, 1) < 0) { // permiso para acceso a los 2 puertos modo usuario
-                perror("ioperm"); return 1;
-        }
+	if (ioperm(CONFIG_DIR, 8, 1) < 0) { // permiso para acceso a los 2 puertos modo usuario
+		perror("ioperm"); 
+		return 1;
+	}
 
 	//abrir fichero /dev/mem
 	if ((fd = open("/dev/mem", O_RDONLY|O_DSYNC)) < 0) {
