@@ -1,4 +1,4 @@
-// obtiene fabricante y modelo dispo. PCI bus 0, slot 0 y función 0; http://wiki.osdev.org/PCI
+// informacion bus PCI: http://wiki.osdev.org/PCI
 #include <sys/io.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -37,14 +37,13 @@ void imprimir_info(uint32_t dir, int clase, int subclase, int interfaz) {
 	for (i = 0; i < 6; i++) {
 		outl (dir_check, CONFIG_DIR);
 		bar = inl(CONFIG_DAT);
-
 		if ((bar & 0xFFFF0000) != 0x0) { //MMIO
 			printf("BAR%d-Mem 0x%x ", i, bar);
 		} else { //PIO
 			printf("BAR%d-IO 0x%x ", i, bar);
 		}
 
-		dir_check = dir + (uint32_t)0x4;
+		dir_check = dir_check + (uint32_t)0x4;
 	}
 	
 	//salto de linea
@@ -66,11 +65,12 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	while (dat != 0xFFFFFFFF) {
 		//comprobamos el tipo de bus
 		dat = (dat & 0x00FF0000) >> 23;
+
 		if (dat) { //es un PCI-PCI
 			dir_pci = (dir_check - 0xc) + 0x100;
 			outl (dir_pci, CONFIG_DIR);
 			dat = inl(CONFIG_DAT);
-			
+
 			while (dat != 0xFFFFFFFF) {
 				buscar_bus(dir_pci, clase, subclase, interfaz, &encontrado);
 
@@ -79,16 +79,18 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 				dat = inl(CONFIG_DAT);
 			}
 		} else { //no es un PCI-PCI
-			dir_pci = dir_check - 0xc;
+			dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
 			outl (dir_pci, CONFIG_DIR);
 			dat = inl(CONFIG_DAT);
 
 			class = (dat & 0xFF000000) >> 24;
 			subclass = (dat & 0x00FF0000) >> 16;
 			interface = (dat & 0x0000FF00) >> 8;
-			if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { //dispositivo encontrado
+
+			if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { 
+				//dispositivo encontrado
 				encontrado = 1;
-				imprimir_info(dir_pci, clase, subclase, interfaz);
+				imprimir_info(dir_pci - 0x8, clase, subclase, interfaz);
 			}
 		}
 		
@@ -151,7 +153,8 @@ int main(int argc, char *argv[]) {
 	uint32_t dir_check, dat;
 
 	//iniciamos por el primer dispostivo
-	dir_check = (uint32_t) 0x80000000;
+	//dir_check = (uint32_t) 0x80000000;
+	dir_check = (uint32_t) 0x80000000 + 0x800 * 0xd; //acceder al sata, en maq virtual no estan contiguos
 	
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
