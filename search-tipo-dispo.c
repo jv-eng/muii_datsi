@@ -153,8 +153,8 @@ int main(int argc, char *argv[]) {
 	uint32_t dir_check, dat;
 
 	//iniciamos por el primer dispostivo
-	//dir_check = (uint32_t) 0x80000000;
-	dir_check = (uint32_t) 0x80000000 + 0x800 * 0xd; //acceder al sata, en maq virtual no estan contiguos
+	dir_check = (uint32_t) 0x80000000;
+	//dir_check = (uint32_t) 0x80000000 + 0x800 * 0xd; //acceder al sata, en maq virtual no estan contiguos
 	
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
