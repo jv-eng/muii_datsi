@@ -53,7 +53,7 @@ void imprimir_info(uint32_t dir, int clase, int subclase, int interfaz) {
 //realiza la busqueda de un dispositvo PCI
 void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	//variables locales
-	uint32_t dir_check, dir_pci, dat, check_pci_pci;
+	uint32_t dir_check, dir_pci, dat;
 	int encontrado = 0;
 	uint8_t class, subclass, interface;
 
@@ -62,25 +62,11 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
 
-	while (dat != 0xFFFFFFFF && !encontrado) {
+	while (dat != 0xFFFFFFFF) {
 		//comprobamos el tipo de bus
-		check_pci_pci = (dat & 0x00FF0000) >> 23;
+		dat = (dat & 0x00FF0000) >> 23;
 
-		//comprobar si es el dispositivo
-
-		dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
-		outl (dir_pci, CONFIG_DIR);
-		dat = inl(CONFIG_DAT);
-		class = (dat & 0xFF000000) >> 24;
-		subclass = (dat & 0x00FF0000) >> 16;
-		interface = (dat & 0x0000FF00) >> 8;
-
-		//si es el dispositivo, fin
-		if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { 
-			//dispositivo encontrado
-			encontrado = 1;
-			imprimir_info(dir_pci - 0x8, clase, subclase, interfaz);
-		} else if (check_pci_pci) { //si no es el dispositivo, comprobar si es un pci to pci
+		if (dat) { //es un PCI-PCI
 			dir_pci = (dir_check - 0xc) + 0x100;
 			outl (dir_pci, CONFIG_DIR);
 			dat = inl(CONFIG_DAT);
@@ -92,26 +78,6 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 				outl (dir_pci, CONFIG_DIR);
 				dat = inl(CONFIG_DAT);
 			}
-		}
-
-		//siguiente iteracion
-		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
-		outl (dir_check, CONFIG_DIR);
-		dat = inl(CONFIG_DAT);
-	}
-
-		/*if (dat) { //es un PCI-PCI
-				dir_pci = (dir_check - 0xc) + 0x100;
-				outl (dir_pci, CONFIG_DIR);
-				dat = inl(CONFIG_DAT);
-
-				while (dat != 0xFFFFFFFF) {
-					buscar_bus(dir_pci, clase, subclase, interfaz, &encontrado);
-
-					dir_pci = dir_pci + 0x100;
-					outl (dir_pci, CONFIG_DIR);
-					dat = inl(CONFIG_DAT);
-				}
 		} else { //no es un PCI-PCI
 			dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
 			outl (dir_pci, CONFIG_DIR);
@@ -136,7 +102,7 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
 		outl (dir_check, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
-	}*/
+	}
 
 }
 
@@ -187,8 +153,8 @@ int main(int argc, char *argv[]) {
 	uint32_t dir_check, dat;
 
 	//iniciamos por el primer dispostivo
-	//dir_check = (uint32_t) 0x80000000;
-	dir_check = (uint32_t) 0x80020000 + 0x800 * 0x4; //acceder al sata, en maq virtual no estan contiguos
+	dir_check = (uint32_t) 0x80000000;
+	//dir_check = (uint32_t) 0x80000000 + 0x800 * 0xd; //acceder al sata, en maq virtual no estan contiguos
 	
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
