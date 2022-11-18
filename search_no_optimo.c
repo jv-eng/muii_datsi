@@ -53,7 +53,7 @@ void imprimir_info(uint32_t dir, int clase, int subclase, int interfaz) {
 //realiza la busqueda de un dispositvo PCI
 void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	//variables locales
-	uint32_t dir_check, dir_pci, dat;
+	uint32_t dir_check, dir_pci, dat, check_pci_pci;
 	int encontrado = 0;
 	uint8_t class, subclass, interface;
 
@@ -62,11 +62,25 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
 
-	while (dat != 0xFFFFFFFF) {
+	while (dat != 0xFFFFFFFF && !encontrado) {
 		//comprobamos el tipo de bus
-		dat = (dat & 0x00FF0000) >> 23;
+		check_pci_pci = (dat & 0x00FF0000) >> 23;
 
-		if (dat) { //es un PCI-PCI
+		//comprobar si es el dispositivo
+
+		dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
+		outl (dir_pci, CONFIG_DIR);
+		dat = inl(CONFIG_DAT);
+		class = (dat & 0xFF000000) >> 24;
+		subclass = (dat & 0x00FF0000) >> 16;
+		interface = (dat & 0x0000FF00) >> 8;
+
+		//si es el dispositivo, fin
+		if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { 
+			//dispositivo encontrado
+			encontrado = 1;
+			imprimir_info(dir_pci - 0x8, clase, subclase, interfaz);
+		} else if (check_pci_pci) { //si no es el dispositivo, comprobar si es un pci to pci
 			dir_pci = (dir_check - 0xc) + 0x100;
 			outl (dir_pci, CONFIG_DIR);
 			dat = inl(CONFIG_DAT);
@@ -78,32 +92,13 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 				outl (dir_pci, CONFIG_DIR);
 				dat = inl(CONFIG_DAT);
 			}
-		} else { //no es un PCI-PCI
-			dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
-			outl (dir_pci, CONFIG_DIR);
-			dat = inl(CONFIG_DAT);
-
-			class = (dat & 0xFF000000) >> 24;
-			subclass = (dat & 0x00FF0000) >> 16;
-			interface = (dat & 0x0000FF00) >> 8;
-
-			if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { 
-				//dispositivo encontrado
-				encontrado = 1;
-				imprimir_info(dir_pci - 0x8, clase, subclase, interfaz);
-			}
 		}
-		
-		if (encontrado) {
-			return;
-		}
-		
+
 		//siguiente iteracion
 		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
 		outl (dir_check, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
 	}
-
 }
 
 //realiza la busqueda de un dispositivo dentro de un PCI-PCI

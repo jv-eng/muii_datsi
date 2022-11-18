@@ -8,8 +8,8 @@
 #define CONFIG_DAT 0xCFC
 
 //declaracion de funciones
-void buscar_bus(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado);
-void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz);
+void buscar_disp(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado);
+void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado);
 void imprimir_info(uint32_t dir, int clase, int subclase, int interfaz);
 
 
@@ -51,10 +51,10 @@ void imprimir_info(uint32_t dir, int clase, int subclase, int interfaz) {
 }
 
 //realiza la busqueda de un dispositvo PCI
-void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
+void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado) {
 	//variables locales
 	uint32_t dir_check, dir_pci, dat, check_pci_pci;
-	int encontrado = 0;
+	int i = 0, j = 0;
 	uint8_t class, subclass, interface;
 
 	//iniciamos por el primer dispostivo
@@ -62,12 +62,20 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
 
-	while (dat != 0xFFFFFFFF && !encontrado) {
+	while (i < 32 && !*encontrado) {
+		//no analizar dispositivo si no hay nada
+		if (dat == 0xFFFFFFFF) {
+			dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
+			outl (dir_check, CONFIG_DIR);
+			dat = inl(CONFIG_DAT);
+			i++;
+			continue;
+		}
+
 		//comprobamos el tipo de bus
 		check_pci_pci = (dat & 0x00FF0000) >> 23;
 
 		//comprobar si es el dispositivo
-
 		dir_pci = (dir_check - (uint32_t)0xc) + (uint32_t)0x8;
 		outl (dir_pci, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
@@ -78,19 +86,23 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 		//si es el dispositivo, fin
 		if ((class - clase) == 0 &&  (subclass - subclase) == 0 && (interface - interfaz) == 0) { 
 			//dispositivo encontrado
-			encontrado = 1;
+			*encontrado = 1;
 			imprimir_info(dir_pci - 0x8, clase, subclase, interfaz);
 		} else if (check_pci_pci) { //si no es el dispositivo, comprobar si es un pci to pci
 			dir_pci = (dir_check - 0xc) + 0x100;
 			outl (dir_pci, CONFIG_DIR);
 			dat = inl(CONFIG_DAT);
 
-			while (dat != 0xFFFFFFFF) {
-				buscar_bus(dir_pci, clase, subclase, interfaz, &encontrado);
+			j = 0;
+			while (j < 8) {
+				if (dat != 0xFFFFFFFF) {
+					buscar_disp(dir_pci, clase, subclase, interfaz, encontrado);	
+				}
 
 				dir_pci = dir_pci + 0x100;
 				outl (dir_pci, CONFIG_DIR);
 				dat = inl(CONFIG_DAT);
+				j++;
 			}
 		}
 
@@ -98,11 +110,12 @@ void buscar_funcion(uint32_t dir, int clase, int subclase, int interfaz) {
 		dir_check = (uint32_t)(dir_check + (uint32_t)0x800);
 		outl (dir_check, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
+		i++;
 	}
 }
 
 //realiza la busqueda de un dispositivo dentro de un PCI-PCI
-void buscar_bus(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado) {
+void buscar_disp(uint32_t dir, int clase, int subclase, int interfaz, int * encontrado) {
 	//variables locales
 	uint32_t dir_check, dat;
 	uint8_t class, subclass, interface;
@@ -135,7 +148,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	//variables locales
-	int clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]);
+	int clase = atoi(argv[1]), subclase = atoi(argv[2]), interfaz = atoi(argv[3]), encontrado = 0;
 	
 	//iteramos sobre el dominio
 	// permiso para acceso a los 2 puertos modo usuario
@@ -146,22 +159,25 @@ int main(int argc, char *argv[]) {
 
 	//variables locales
 	uint32_t dir_check, dat;
+	int i = 0;
 
 	//iniciamos por el primer dispostivo
-	//dir_check = (uint32_t) 0x80000000;
-	dir_check = (uint32_t) 0x80020000 + 0x800 * 0x4; //acceder al sata, en maq virtual no estan contiguos
+	dir_check = (uint32_t) 0x80000000;
 	
 	outl (dir_check, CONFIG_DIR);
 	dat = inl(CONFIG_DAT);
 
-	while (dat != 0xFFFFFFFF) {
-		//buscar en ese dominio
-		buscar_funcion(dir_check, clase, subclase, interfaz);
-
+	while (!encontrado && i < 256) {
+		//solo buscamos en el dominio si hay algo
+		if (dat != 0xFFFFFFFF) {
+			buscar_funcion(dir_check, clase, subclase, interfaz, &encontrado);
+		}
+		
 		//siguiente dominio
-		dir_check = (uint32_t)(0x80000000 + (uint32_t)0x10000);
+		dir_check = (uint32_t)(dir_check + (uint32_t)0x10000);
 		outl (dir_check, CONFIG_DIR);
 		dat = inl(CONFIG_DAT);
+		i++;
 	}
 
 	return 0;
