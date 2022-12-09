@@ -1,1 +1,0 @@
-cmd_/home/jv/muii_datsi/primer_mod/Module.symvers := sed 's/\.ko$$/\.o/' /home/jv/muii_datsi/primer_mod/modules.order | scripts/mod/modpost -m -a  -o /home/jv/muii_datsi/primer_mod/Module.symvers -e -i Module.symvers   -T -
