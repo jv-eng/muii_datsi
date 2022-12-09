@@ -1,0 +1,8 @@
+*.o
+primer_mod/*.ko*
+primer_mod/*.mod*
+kernel/*.ko*
+kernel/*.mod*
+usuario/*.ko*
+usuario/*.mod*
+usuario/*.o
