@@ -7,10 +7,13 @@
                 "/usr/include",
                 "/usr/local/include",
                 "/usr/src/linux-headers-5.15.0-56/include",
-                "/usr/src/linux-headers-5.15.0-56-generic/include",
                 "/usr/src/linux-headers-5.15.0-56/arch/x86/include",
                 "/usr/lib/gcc/x86_64-linux-gnu/11/include",
                 "/usr/src/linux-headers-5.15.0-56-generic/arch/x86/include/",
+                "/lib/modules/5.15.0-56-generic/build",
+                "/usr/src/linux-headers-5.15.0-56-generic",
+                "/lib/linux",
+                "/usr/src/linux-headers-5.15.0-56-generic/include/linux/",
                 "/sbin"
             ],
             "defines": [

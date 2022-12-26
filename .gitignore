@@ -6,3 +6,4 @@ kernel/*.mod*
 usuario/*.ko*
 usuario/*.mod*
 usuario/*.o
+.vscode/**
