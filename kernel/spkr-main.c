@@ -58,7 +58,25 @@ static struct class *cl;
 /////////////////////////////////////////////////////////////////////////
 
 void int_temp(struct timer_list *t) {
+    //declaracion de variables locales
+    int n, freq, ms;
+    char buff[4];
+
     printk("int_temp\n");
+    
+    //seccion critica
+    spin_lock(&lock_write);
+
+    n = kfifo_out(&fifo, buff, 4); //leemos 4B
+    freq = (buff[1] << 8) + buff[0];
+    ms = (buff[3] << 8) + buff[2];
+
+    if (ms > 0) {
+        set_spkr_frequency(freq);
+        spkr_on();
+    }
+
+
 }
 
 void add_timer_(long time) {
@@ -118,8 +136,6 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
     char local_buff = '0';
     int elem_write = count, i;
 
-    
-
     //check count
     if (count < 0) {
         mutex_unlock(&write_device_mutex);
@@ -170,6 +186,26 @@ static struct file_operations fops = {
 
 //inicio del driver
 static int __init init_initpkr(void) {
+    //iniciar los mutex
+    mutex_init(&open_device_mutex);
+    mutex_init(&write_device_mutex);
+
+    //iniciar spinlock
+    spin_lock_init(&lock_write);
+printk("hola\n");
+    //iniciar kfifo
+    if (kfifo_alloc(&fifo, 10, GFP_KERNEL)) {
+		printk("error kfifo_alloc\n");
+		return -ENOMEM;
+	}
+printk("hola\n");
+    //gestionar procesos
+    init_waitqueue_head(&cola);
+
+    //inicializar temporizador
+    timer_setup(&timer, int_temp, 0); 
+
+
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
 		printk("fallo al registrar al dispositivo\n");
@@ -198,28 +234,14 @@ static int __init init_initpkr(void) {
 		return -1;
 	}
 
-    //iniciar los mutex
-    mutex_init(&open_device_mutex);
-    mutex_init(&write_device_mutex);
 
-    //iniciar spinlock
-    spin_lock_init(&lock_write);
+    printk("disp creado\n");
 
-    //iniciar kfifo
-    if (kfifo_alloc(&fifo, 1, GFP_KERNEL)) {
-		printk(KERN_WARNING "error kfifo_alloc\n");
-		return -ENOMEM;
-	}
 
-    //gestionar procesos
-    init_waitqueue_head(&cola);
-
-    //inicializar temporizador
-    timer_setup(&timer, int_temp, 0); 
     
     //para probar el modulo
-    set_spkr_frequency(frecuencia);
-    spkr_on();
+    //set_spkr_frequency(frecuencia);
+    //spkr_on();
     
 
     printk("Inicio del driver\n");
