@@ -30,7 +30,7 @@ static int frecuencia = 0; module_param(frecuencia, int, S_IRUGO);
 static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 
 //mutex
-struct mutex open_device;
+struct mutex open_device_mutex;
 
 //crear dispositivo
 static dev_t midispo;
@@ -51,14 +51,14 @@ static int device_open(struct inode *inode, struct file *filp) {
     if (filp->f_mode & FMODE_READ) {
         printk("device_open - dispositivo abierto en modo lectura\n");
     } else if (filp->f_mode & FMODE_WRITE) { 
-        mutex_lock(&open_device);
+        mutex_lock(&open_device_mutex);
         if (device_open_cont) {
             printk("device_open - el dispositivo esta en uso\n");
-            mutex_unlock(&open_device);
+            mutex_unlock(&open_device_mutex);
             return -EBUSY;
         }
         device_open_cont++;
-        mutex_unlock(&open_device);
+        mutex_unlock(&open_device_mutex);
         printk("device_open - dispositivo abierto en modo escritura\n");
     }
 
@@ -67,6 +67,13 @@ static int device_open(struct inode *inode, struct file *filp) {
 
 //device release
 static int device_release(struct inode *inode, struct file *file) {
+    //liberar mutex escritura
+    if (file->f_mode & FMODE_WRITE) {
+        mutex_lock(&open_device_mutex);
+        device_open_cont--;
+        mutex_unlock(&open_device_mutex);
+    }
+    
     printk("device_release\n");
     return 0;
 }
@@ -91,13 +98,13 @@ static int __init init_initpkr(void) {
     
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
-		printk(KERN_ALERT "fallo al registrar al dispositivo\n");
+		printk("fallo al registrar al dispositivo\n");
 		return -1;
 	}
     cdev_init(&c_dev, &fops); //iniciacion del modulo
 	//alta del dispositivo
 	if( cdev_add( &c_dev, midispo, 1 ) == -1) {
-		printk( KERN_ALERT "error al añadir el dispositivo\n" );
+		printk("error al añadir el dispositivo\n" );
 		device_destroy( cl, midispo );
 		class_destroy( cl );
 		unregister_chrdev_region( midispo, 1 );
@@ -105,20 +112,20 @@ static int __init init_initpkr(void) {
 	}
     //crear clase en sysfs
     if ((cl = class_create(THIS_MODULE, "speaker")) == NULL) {
-		printk(KERN_ALERT "error al crear la clase\n");
+		printk("error al crear la clase\n");
 		unregister_chrdev_region(midispo, 1);
 		return -1;
 	}
 	//crear clase
 	if(device_create(cl, NULL, midispo, NULL, DEVICE_NAME) == NULL) {
-		printk(KERN_ALERT "error al crear el dispositivo\n");
+		printk("error al crear el dispositivo\n");
 		class_destroy(cl);
 		unregister_chrdev_region(midispo, 1);
 		return -1;
 	}
 
     //iniciar los mutex
-    mutex_init(&open_device);
+    mutex_init(&open_device_mutex);
 
 
     printk("%d %d\n", midispo, spkr_minor);
