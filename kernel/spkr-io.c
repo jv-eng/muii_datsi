@@ -22,7 +22,7 @@ void set_spkr_frequency(unsigned int frequency) {
 	int freq = PIT_TICK_RATE / frequency;
 	unsigned long flags = 0;
 
-	printk(KERN_INFO "spkr set frequency: %d\n", frequency);
+	printk("spkr set frequency: %d\n", frequency);
 
 
 	//inicio seccion critica
@@ -51,7 +51,7 @@ void spkr_on(void) {
 	//fin seccion critica
 	raw_spin_unlock_irqrestore(&i8253_lock, flags);
 
-	printk(KERN_INFO "spkr ON\n");
+	printk("spkr ON\n");
 
 }
 
@@ -70,5 +70,5 @@ void spkr_off(void) {
 	//fin seccion critica
 	raw_spin_unlock_irqrestore(&i8253_lock, flags);
 
-	printk(KERN_INFO "spkr OFF\n");
+	printk("spkr OFF\n");
 }

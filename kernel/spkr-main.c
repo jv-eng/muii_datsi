@@ -19,6 +19,9 @@ MODULE_AUTHOR("Juan Alfonso Viejo Rodriguez <juanalfonso.viejo.rodriguez@alumnos
 MODULE_DESCRIPTION("sound driver for pc");
 MODULE_VERSION("0.0.1");
 
+/////////////////////////////////////////////////////////////////////////
+/*Variables globales*/
+/////////////////////////////////////////////////////////////////////////
 
 //declaracion de funciones
 extern void set_spkr_frequency(unsigned int frequency);
@@ -31,6 +34,17 @@ static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 
 //mutex
 struct mutex open_device_mutex;
+struct mutex write_device_mutex;
+
+//spinlock
+spinlock_t lock_write;
+
+//gestion de procesos
+static wait_queue_head_t cola;
+static struct kfifo fifo;
+
+//gestion de temporizadores
+static struct timer_list timer;
 
 //crear dispositivo
 static dev_t midispo;
@@ -42,6 +56,26 @@ static struct class *cl;
 /////////////////////////////////////////////////////////////////////////
 /*Coidgo*/
 /////////////////////////////////////////////////////////////////////////
+
+void int_temp(struct timer_list *t) {
+    printk("int_temp\n");
+}
+
+void add_timer_(long time) {
+    //comprobar si queda tiempo
+    if (timer_pending(&timer)){
+		printk("timer pending\n");
+		return;
+	}
+
+    //configuramos el temporizador
+	timer.function = int_temp;
+	timer.expires = jiffies + msecs_to_jiffies(time); 
+
+    printk("timer added\n");
+
+	add_timer(&timer);
+}
 
 //device open
 static int device_open(struct inode *inode, struct file *filp) {
@@ -79,7 +113,49 @@ static int device_release(struct inode *inode, struct file *file) {
 }
 
 //device write
-static ssize_t device_write(struct file *filp, const char *buff, size_t count, loff_t *f_pos) {
+static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
+    //variables locales
+    char local_buff = '0';
+    int elem_write = count, i;
+
+    
+
+    //check count
+    if (count < 0) {
+        mutex_unlock(&write_device_mutex);
+        return -EFAULT;
+    }
+
+    //check memoria de usuario
+    if (get_user(local_buff, buf) != 0) {
+        mutex_unlock(&write_device_mutex);
+        return -EFAULT;
+    }
+
+    //inicio seccion critica, lectura de sonidos
+    spin_lock(&lock_write);
+    for (i = 0; i < count; i++) {
+        
+        if (kfifo_avail(&fifo) == 0) {
+            spin_unlock(&lock_write);
+
+            add_timer_(200);
+
+            if(wait_event_interruptible(cola, kfifo_avail(&fifo) >0)) {
+                return -ERESTARTSYS;
+            }
+
+            spin_lock(&lock_write);
+        }
+
+        kfifo_put(&fifo, buf[i]);
+        elem_write--;
+    }
+
+    add_timer_(200);
+    spin_unlock(&lock_write);
+
+
     printk("device_write\n");
     return 0;
 }
@@ -94,8 +170,6 @@ static struct file_operations fops = {
 
 //inicio del driver
 static int __init init_initpkr(void) {
-    //variables locales
-    
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
 		printk("fallo al registrar al dispositivo\n");
@@ -126,10 +200,24 @@ static int __init init_initpkr(void) {
 
     //iniciar los mutex
     mutex_init(&open_device_mutex);
+    mutex_init(&write_device_mutex);
 
+    //iniciar spinlock
+    spin_lock_init(&lock_write);
 
-    printk("%d %d\n", midispo, spkr_minor);
+    //iniciar kfifo
+    if (kfifo_alloc(&fifo, 1, GFP_KERNEL)) {
+		printk(KERN_WARNING "error kfifo_alloc\n");
+		return -ENOMEM;
+	}
 
+    //gestionar procesos
+    init_waitqueue_head(&cola);
+
+    //inicializar temporizador
+    timer_setup(&timer, int_temp, 0); 
+    
+    //para probar el modulo
     set_spkr_frequency(frecuencia);
     spkr_on();
     
@@ -147,6 +235,12 @@ static void __exit exit_intpkr(void) {
     cdev_del(&c_dev);
     device_destroy(cl, midispo);
     class_destroy(cl);
+
+    //destruir mutex
+    mutex_destroy(&open_device_mutex);
+
+    //eliminar temporizador
+    del_timer_sync(&timer);
     
     
     printk("fin del modulo\n");
