@@ -1,6 +1,9 @@
 make
 sudo insmod spkr.ko frecuencia=10 spkr_minor=5
 sudo dd if=../usuario/songs.bin of=/dev/int_spkr bs=4 count=1
+#sudo dd if=../usuario/songs.bin of=/dev/int_spkr bs=2 count=2
+#sudo dd if=../usuario/songs.bin of=/dev/int_spkr bs=4 count=20
+#sudo dd if=../usuario/songs.bin of=/dev/int_spkr bs=80 count=1
 sudo dmesg 
 sudo rmmod spkr
 sudo dmesg --clear

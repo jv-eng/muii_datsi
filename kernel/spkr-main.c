@@ -133,7 +133,7 @@ static int device_release(struct inode *inode, struct file *file) {
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
-    char local_buff = '0';
+    char local_buff;
     int elem_write = count, i;
 
     //check count
@@ -150,21 +150,14 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
 
     //inicio seccion critica, lectura de sonidos
     spin_lock(&lock_write);
+
     for (i = 0; i < count; i++) {
         
-        if (kfifo_avail(&fifo) == 0) {
-            spin_unlock(&lock_write);
+        printk("%d\n", local_buff);
+        set_spkr_frequency(local_buff);
+        spkr_on();
+get_user(local_buff, buf+i);
 
-            add_timer_(200);
-
-            if(wait_event_interruptible(cola, kfifo_avail(&fifo) >0)) {
-                return -ERESTARTSYS;
-            }
-
-            spin_lock(&lock_write);
-        }
-
-        kfifo_put(&fifo, buf[i]);
         elem_write--;
     }
 
@@ -186,25 +179,6 @@ static struct file_operations fops = {
 
 //inicio del driver
 static int __init init_initpkr(void) {
-    //iniciar los mutex
-    mutex_init(&open_device_mutex);
-    mutex_init(&write_device_mutex);
-
-    //iniciar spinlock
-    spin_lock_init(&lock_write);
-printk("hola\n");
-    //iniciar kfifo
-    if (kfifo_alloc(&fifo, 10, GFP_KERNEL)) {
-		printk("error kfifo_alloc\n");
-		return -ENOMEM;
-	}
-printk("hola\n");
-    //gestionar procesos
-    init_waitqueue_head(&cola);
-
-    //inicializar temporizador
-    timer_setup(&timer, int_temp, 0); 
-
 
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
@@ -233,6 +207,30 @@ printk("hola\n");
 		unregister_chrdev_region(midispo, 1);
 		return -1;
 	}
+
+
+
+    //iniciar los mutex
+    mutex_init(&open_device_mutex);
+    mutex_init(&write_device_mutex);
+
+    //iniciar spinlock
+    spin_lock_init(&lock_write);
+
+    //iniciar kfifo
+    if (kfifo_alloc(&fifo, 4, GFP_KERNEL) != 0) {
+		printk("error kfifo_alloc\n");
+		return -ENOMEM;
+	}
+    
+    //gestionar procesos
+    init_waitqueue_head(&cola);
+
+    //inicializar temporizador
+    timer_setup(&timer, int_temp, 0); 
+
+
+    
 
 
     printk("disp creado\n");
