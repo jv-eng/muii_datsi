@@ -59,7 +59,7 @@ static struct class *cl;
 
 void int_temp(struct timer_list *t) {
     //declaracion de variables locales
-    int n, freq, ms;
+    int n, freq, ms, local_buff;
     char buff[4];
 
     printk("int_temp\n");
@@ -67,16 +67,24 @@ void int_temp(struct timer_list *t) {
     //seccion critica
     spin_lock(&lock_write);
 
+	wake_up_interruptible(&cola);
+
+
     n = kfifo_out(&fifo, buff, 4); //leemos 4B
+   // get_user(local_buff, buff);
+    //printk("hola%d\n",local_buff);
+    printk("%d\n",buff[1]);
+    printk("%d\n",buff[2]);
+    printk("%d\n",buff[3]);
     freq = (buff[1] << 8) + buff[0];
     ms = (buff[3] << 8) + buff[2];
 
-    if (ms > 0) {
+    if (ms > 0 && freq > 0) {
         set_spkr_frequency(freq);
         spkr_on();
+    } else {
+        spkr_off();
     }
-
-
 }
 
 void add_timer_(long time) {
@@ -88,7 +96,7 @@ void add_timer_(long time) {
 
     //configuramos el temporizador
 	timer.function = int_temp;
-	timer.expires = jiffies + msecs_to_jiffies(time); 
+	timer.expires = jiffies_to_msecs(jiffies + msecs_to_jiffies(time)); 
 
     printk("timer added\n");
 
@@ -133,9 +141,9 @@ static int device_release(struct inode *inode, struct file *file) {
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
-    char local_buff;
-    int elem_write = count, i;
-
+    uint32_t local_buff, x, freq, j;
+    int elem_write = count, i, copied;
+printk("write\n");
     //check count
     if (count < 0) {
         mutex_unlock(&write_device_mutex);
@@ -151,21 +159,44 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
     //inicio seccion critica, lectura de sonidos
     spin_lock(&lock_write);
 
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < (int)count; i += 4) {
+        get_user(local_buff, buf + i);
+        get_user(x, buf + i + 1);
+        local_buff = local_buff + (x << 8);
+        printk("%d\n",local_buff);
+
+        get_user(freq, buf + i + 2);
+        get_user(j, buf + i + 3);
         
-        printk("%d\n", local_buff);
-        set_spkr_frequency(local_buff);
+        printk("kernel %x\t%u\n", freq, j);
+        
+        freq = freq + (j << 8);
+        
+        if (freq > 0) set_spkr_frequency(freq);
+       /* if (kfifo_avail(&fifo) < 4) {
+            add_timer_(2);
+            if(wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)){
+                return -ERESTARTSYS;
+            }
+        }
+printk("hola\n");
+        if (elem_write > 4) {
+            printk("hola 1\n");
+            if (kfifo_from_user(&fifo, buf+i, 4, &copied) != 0) return -1;
+        } else{
+            printk("hola\n");
+			if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != -1) return -1;
+		}*/
+
         spkr_on();
-get_user(local_buff, buf+i);
-
-        elem_write--;
+        elem_write -= 4;
     }
-
-    add_timer_(200);
+    add_timer_(2);
+    
     spin_unlock(&lock_write);
-
-
+    
     printk("device_write\n");
+
     return 0;
 }
 
@@ -180,6 +211,25 @@ static struct file_operations fops = {
 //inicio del driver
 static int __init init_initpkr(void) {
 
+    //iniciar los mutex
+    mutex_init(&open_device_mutex);
+    mutex_init(&write_device_mutex);
+
+    //iniciar spinlock
+    spin_lock_init(&lock_write);
+
+    //iniciar kfifo
+    if (kfifo_alloc(&fifo, PAGE_SIZE, GFP_KERNEL) != 0) {
+		printk("error kfifo_alloc\n");
+		return -ENOMEM;
+	}
+    
+    //gestionar procesos
+    init_waitqueue_head(&cola);
+
+    //inicializar temporizador
+    timer_setup(&timer, int_temp, 0); 
+
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
 		printk("fallo al registrar al dispositivo\n");
@@ -187,7 +237,7 @@ static int __init init_initpkr(void) {
 	}
     cdev_init(&c_dev, &fops); //iniciacion del modulo
 	//alta del dispositivo
-	if( cdev_add( &c_dev, midispo, 1 ) == -1) {
+	if(cdev_add(&c_dev, midispo, 1) == -1) {
 		printk("error al añadir el dispositivo\n" );
 		device_destroy( cl, midispo );
 		class_destroy( cl );
@@ -207,27 +257,6 @@ static int __init init_initpkr(void) {
 		unregister_chrdev_region(midispo, 1);
 		return -1;
 	}
-
-
-
-    //iniciar los mutex
-    mutex_init(&open_device_mutex);
-    mutex_init(&write_device_mutex);
-
-    //iniciar spinlock
-    spin_lock_init(&lock_write);
-
-    //iniciar kfifo
-    if (kfifo_alloc(&fifo, 4, GFP_KERNEL) != 0) {
-		printk("error kfifo_alloc\n");
-		return -ENOMEM;
-	}
-    
-    //gestionar procesos
-    init_waitqueue_head(&cola);
-
-    //inicializar temporizador
-    timer_setup(&timer, int_temp, 0); 
 
 
     
