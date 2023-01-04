@@ -4,11 +4,6 @@
 #include <linux/i8253.h>
 #include <asm/io.h>
 
-//declaracion de funciones
-/*void set_spkr_frequency(unsigned int frequency);
-void spkr_on(void);
-void spkr_off(void);*/
-
 
 ///////////////////////////////////////////////////////
 /*implementacion*/
@@ -30,8 +25,8 @@ void set_spkr_frequency(unsigned int frequency) {
 	
 	//escritura en el dispositivo
 	outb_p(0xB6, port2);
-	outb_p(freq & 0xff, port1);
-	outb((freq >> 8) & 0xff, port1);
+	outb_p(freq /*& 0xff*/, port1);
+	//outb((freq >> 8) & 0xff, port1);
 
 	//fin seccion critica
 	raw_spin_unlock_irqrestore(&i8253_lock, flags);

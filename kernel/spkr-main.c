@@ -19,6 +19,8 @@ MODULE_AUTHOR("Juan Alfonso Viejo Rodriguez <juanalfonso.viejo.rodriguez@alumnos
 MODULE_DESCRIPTION("sound driver for pc");
 MODULE_VERSION("0.0.1");
 
+void add_timer_(long time);
+
 /////////////////////////////////////////////////////////////////////////
 /*Variables globales*/
 /////////////////////////////////////////////////////////////////////////
@@ -65,26 +67,27 @@ void int_temp(struct timer_list *t) {
     printk("int_temp\n");
     
     //seccion critica
-    spin_lock(&lock_write);
-
+spin_lock_bh(&lock_write);
 	wake_up_interruptible(&cola);
 
 
     n = kfifo_out(&fifo, buff, 4); //leemos 4B
-   // get_user(local_buff, buff);
-    //printk("hola%d\n",local_buff);
+
+    printk("int_temp %d\n",buff[0]);
     printk("%d\n",buff[1]);
     printk("%d\n",buff[2]);
     printk("%d\n",buff[3]);
-    freq = (buff[1] << 8) + buff[0];
-    ms = (buff[3] << 8) + buff[2];
-
+    ms = (buff[1] << 8) + buff[0];
+    freq = (buff[3] << 8) + buff[2];
+printk("%d\n",(buff[3] << 8) + buff[2]);
     if (ms > 0 && freq > 0) {
         set_spkr_frequency(freq);
         spkr_on();
     } else {
         spkr_off();
     }
+
+spin_unlock(&lock_write);
 }
 
 void add_timer_(long time) {
@@ -157,10 +160,10 @@ printk("write\n");
     }
 
     //inicio seccion critica, lectura de sonidos
-    spin_lock(&lock_write);
+    spin_lock_bh(&lock_write);
 
     for (i = 0; i < (int)count; i += 4) {
-        get_user(local_buff, buf + i);
+        /*get_user(local_buff, buf + i);
         get_user(x, buf + i + 1);
         local_buff = local_buff + (x << 8);
         printk("%d\n",local_buff);
@@ -172,28 +175,28 @@ printk("write\n");
         
         freq = freq + (j << 8);
         
-        if (freq > 0) set_spkr_frequency(freq);
-       /* if (kfifo_avail(&fifo) < 4) {
-            add_timer_(2);
+        if (freq > 0) set_spkr_frequency(freq);*/
+
+        if (kfifo_avail(&fifo) < 4) {
+            add_timer_(200);
             if(wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)){
                 return -ERESTARTSYS;
             }
         }
 printk("hola\n");
-        if (elem_write > 4) {
+        if (elem_write >= 4) {
             printk("hola 1\n");
             if (kfifo_from_user(&fifo, buf+i, 4, &copied) != 0) return -1;
         } else{
-            printk("hola\n");
-			if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != -1) return -1;
-		}*/
+            printk("hola 2\n");
+			if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != 0) return -1;
+		}
 
-        spkr_on();
         elem_write -= 4;
     }
-    add_timer_(2);
+    add_timer_(200);
     
-    spin_unlock(&lock_write);
+    spin_unlock_bh(&lock_write);
     
     printk("device_write\n");
 
