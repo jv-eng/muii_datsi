@@ -33,7 +33,6 @@ extern void spkr_off(void);
 //variables globales
 static int frecuencia = 0; module_param(frecuencia, int, S_IRUGO);
 static int device_open_cont = 0;	//ver si el dispositivo esta en uso
-static int temp = 0;
 
 //mutex
 struct mutex open_device_mutex;
@@ -70,7 +69,36 @@ void int_temp(struct timer_list *t) {
     //seccion critica
 spin_lock_bh(&lock_write);
 	wake_up_interruptible(&cola);
-    temp = 0;
+
+    if (kfifo_len(&fifo) < 4) {
+        printk("no hay suficientes bytes\n");
+        spkr_off();
+        spin_unlock(&lock_write);
+        //wake_up_interruptible(&cola);
+    }
+
+    n = kfifo_out(&fifo, buff, 4); //leemos 4 elementos
+
+    printk("int_temp %d\n",buff[0]);
+    printk("%d\n",buff[1]);
+    printk("%d\n",buff[2]);
+    printk("%d\n",buff[3]);
+    ms = (buff[1] << 8) + buff[0];
+    freq = (buff[3] << 8) + buff[2];
+printk("ms %d freq %d\n",ms,freq);
+
+
+    if (ms > 0 && freq > 0) {
+        set_spkr_frequency(freq);
+        spkr_on();
+    } else {
+        spkr_off();
+        printk("stop\n");
+    }
+
+
+    
+
 spin_unlock(&lock_write);
 }
 
@@ -128,48 +156,92 @@ static int device_release(struct inode *inode, struct file *file) {
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
-    uint16_t freq, ms, temp;
-    int /*freq, ms,*/ elem_write = count, i, cont = 0;
-    char local_buff[4];
-    
-    printk("device_write\n");
+    uint32_t local_buff, x, freq, j;
+    int elem_write = count, i, copied;
+printk("write\n");
+    //check count
+    if (count < 0) {
+        mutex_unlock(&write_device_mutex);
+        return -EFAULT;
+    }
+
+    //check memoria de usuario
+    if (get_user(local_buff, buf) != 0) {
+        mutex_unlock(&write_device_mutex);
+        return -EFAULT;
+    }
 
     //inicio seccion critica, lectura de sonidos
     spin_lock_bh(&lock_write);
 
-    for (i = count; i >= 4; i -= 4) {
+    for (i = 0; i < (int)count; i += 4) {
 
-        /*if (copy_from_user(local_buff, buf + cont, 4) != 0) {
-            return -EFAULT;
+       /* if (kfifo_avail(&fifo) < 4) {
+            add_timer_(200);
+            if(wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)){
+                return -ERESTARTSYS;
+            }
         }
-printk("%d\t%d\n",local_buff[1], local_buff[0]);
-        ms = (local_buff[1] << 8) + local_buff[0];
-        freq = (local_buff[3] << 8) + local_buff[2];*/
-        if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
-        
-        if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
-                
-        printk("kernel %d\t%d\n", ms, freq);
-        
-        if (freq > 0) set_spkr_frequency(freq);
-        spkr_on();
-
-        add_timer_(ms);
-        temp = 1;
-        //spin_unlock_bh(&lock_write);
-        if (wait_event_interruptible(cola, temp != 0)) {
-            spin_unlock_bh(&lock_write);
-            return -ERESTARTSYS;
+printk("copiar datos\n");
+        if (elem_write > 4) {
+            printk("hola 1\n");
+            if (kfifo_from_user(&fifo, buf+i, 4, &copied) != 0) return -1;
+        } else{
+            printk("hola 2\n");
+			if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != 0) return -1;
+		}*/
+/////////////////////////////////////////////////////////////
+        /*
+        for (i = 0; i < (int)count; i++) {
+        //elem_write = count;
+        if (kfifo_avail(&fifo) == 0) {
+            add_timer_(200);
+            if (wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)){
+                return -ERESTARTSYS;
+            }
+        }
+        printk("--------------------%d ------i %d\n",count, i);
+for (x=i; x < 5 + i; x++) {
+    get_user(local_buff, buf + x);
+    printk("valores buf %d\n", local_buff);
+}
+        if (elem_write>4){
+			if (kfifo_from_user(&fifo, buf+i, 4, &copied) != 0) return -1;
+		}else{
+            printk("hola\n");
+			if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != 0) return -1;
 		}
-        spkr_off();
-        //spin_lock_bh(&lock_write);
-        cont += 2;
+		printk("copied %d elem_write %d\n",copied,elem_write);        
     }
+        */
 
+        if (kfifo_avail(&fifo)==0){
+			printk("write - kfifo lleno\n");
+			spin_unlock(&lock_write);
+
+			add_timer_(200);
+
+			if(wait_event_interruptible(cola,kfifo_avail(&fifo)>0)){
+				//mutex_unlock(&write_mutex);
+				return -ERESTARTSYS;
+			}
+			printk("write - kfifo liberado\n");
+			
+			spin_lock(&lock_write);
+		}
+		//if (kfifo_from_user(&fifo, buf+i, elem_write, &copied) != 0) return -1;
+        get_user(local_buff, buf + i);
+		kfifo_put(&fifo, local_buff);
+
+        elem_write -= 4;
+    }
+    add_timer_(200);
     
     spin_unlock_bh(&lock_write);
+    
+    printk("device_write\n");
 
-    return count;
+    return 0;
 }
 
 //definicion de funciones del driver
