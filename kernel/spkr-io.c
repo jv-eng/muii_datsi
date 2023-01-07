@@ -24,8 +24,10 @@ void set_spkr_frequency(unsigned int frequency) {
 	raw_spin_lock_irqsave(&i8253_lock, flags);
 	
 	//escritura en el dispositivo
-	outb_p(0xB6, port2);
-	outb_p(freq /*& 0xff*/, port1);
+	outb_p(0xB6, 0x43);
+	// Set frequency
+	outb_p(freq & 0xff, 0x42);
+	outb((freq >> 8) & 0xff, 0x42);
 	//outb((freq >> 8) & 0xff, port1);
 
 	//fin seccion critica

@@ -41,10 +41,10 @@ struct mutex write_device_mutex;
 
 //spinlock
 spinlock_t lock_write;
+spinlock_t lock_int_temp;
 
 //gestion de procesos
-static wait_queue_head_t cola;
-static struct kfifo fifo;
+wait_queue_head_t cola;
 
 //gestion de temporizadores
 static struct timer_list timer;
@@ -61,33 +61,28 @@ static struct class *cl;
 /////////////////////////////////////////////////////////////////////////
 
 void int_temp(struct timer_list *t) {
-    //declaracion de variables locales
-    int n, freq, ms, local_buff;
-    char buff[4];
-
     printk("int_temp\n");
     
     //seccion critica
-spin_lock_bh(&lock_write);
+spin_lock_bh(&lock_int_temp);
 	wake_up_interruptible(&cola);
     temp = 0;
-spin_unlock(&lock_write);
+spin_unlock_bh(&lock_int_temp);
 }
 
 void add_timer_(long time) {
     //comprobar si queda tiempo
-    if (timer_pending(&timer)){
+    /*if (timer_pending(&timer)){
 		printk("timer pending\n");
 		return;
-	}
+	}*/
 
     //configuramos el temporizador
-	timer.function = int_temp;
-	timer.expires = jiffies_to_msecs(jiffies + msecs_to_jiffies(time)); 
+	//timer.expires = jiffies + msecs_to_jiffies(time); 
 
     printk("timer added\n");
 
-	add_timer(&timer);
+	mod_timer(&timer, jiffies + msecs_to_jiffies(time));
 }
 
 //device open
@@ -124,14 +119,13 @@ static int device_release(struct inode *inode, struct file *file) {
     printk("device_release\n");
     return 0;
 }
-
+static uint32_t ms_temp = -1;
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
-    uint16_t freq, ms, temp;
-    int /*freq, ms,*/ elem_write = count, i, cont = 0;
-    char local_buff[4];
-    
+    uint16_t freq, ms;
+    int i, cont = 0;
+        
     printk("device_write\n");
 
     //inicio seccion critica, lectura de sonidos
@@ -139,14 +133,7 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
 
     for (i = count; i >= 4; i -= 4) {
 
-        /*if (copy_from_user(local_buff, buf + cont, 4) != 0) {
-            return -EFAULT;
-        }
-printk("%d\t%d\n",local_buff[1], local_buff[0]);
-        ms = (local_buff[1] << 8) + local_buff[0];
-        freq = (local_buff[3] << 8) + local_buff[2];*/
         if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
-        
         if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
                 
         printk("kernel %d\t%d\n", ms, freq);
@@ -156,19 +143,46 @@ printk("%d\t%d\n",local_buff[1], local_buff[0]);
 
         add_timer_(ms);
         temp = 1;
-        //spin_unlock_bh(&lock_write);
-        if (wait_event_interruptible(cola, temp != 0)) {
+printk("hola\n");
+        spin_unlock_bh(&lock_write);
+        if (wait_event_interruptible(cola, temp == 0)) {
             spin_unlock_bh(&lock_write);
             return -ERESTARTSYS;
 		}
+        printk("hola\n");
         spkr_off();
-        //spin_lock_bh(&lock_write);
+        spin_lock_bh(&lock_write);
         cont += 2;
     }
+printk("fin escritura\n");
+    //ha quedado algo sin leer
+    if (i > 0) {
+        printk("revisar lo que queda\n");
+        if (ms_temp != -1) { //meter sonido
+        printk("segunda lectura\n");
+        //spin_lock_bh(&lock_write);
+            if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
+            if (freq > 0) set_spkr_frequency(freq);
+            spkr_on();
+            add_timer_(ms_temp);
+            temp = 1;
+            spin_unlock_bh(&lock_write);
+            if (wait_event_interruptible(cola, temp == 0)) {
+                spin_unlock_bh(&lock_write);
+                return -ERESTARTSYS;
+            }
+            spin_lock_bh(&lock_write);
+            spkr_off();
+            //spin_unlock_bh(&lock_write);
+        } else { //guardar dato
+        printk("guardar dato\n");
+            if (get_user(ms_temp, (u_int16_t __user *)buf + cont) != 0) {return -1;}
+        }
 
-    
+    }
+    printk("fin escritura\n");
     spin_unlock_bh(&lock_write);
-
+printk("fin escritura\n");
     return count;
 }
 
@@ -189,18 +203,14 @@ static int __init init_initpkr(void) {
 
     //iniciar spinlock
     spin_lock_init(&lock_write);
-
-    //iniciar kfifo
-    if (kfifo_alloc(&fifo, PAGE_SIZE, GFP_KERNEL) != 0) {
-		printk("error kfifo_alloc\n");
-		return -ENOMEM;
-	}
+    spin_lock_init(&lock_int_temp);
     
     //gestionar procesos
     init_waitqueue_head(&cola);
 
     //inicializar temporizador
-    timer_setup(&timer, int_temp, 0); 
+    timer_setup(&timer, int_temp, 0);
+    
 
     //crear dispositivo
     if (alloc_chrdev_region(&midispo, spkr_minor, 1, DEVICE_NAME) < 0) {
