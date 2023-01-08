@@ -155,8 +155,12 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
         if (ms_temp != -1) { //meter sonido
 
             if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
-            if (freq > 0) set_spkr_frequency(freq);
-            spkr_on();
+            if (freq > 0) {
+                set_spkr_frequency(freq);
+                spkr_on();
+            } else { //desactivar el altavoz si hay frecuencia = 0
+                spkr_off();
+            }
             add_timer_(ms_temp);
             temp = 1;
             spin_unlock_bh(&lock_write);
