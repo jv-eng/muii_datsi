@@ -34,6 +34,7 @@ extern void spkr_off(void);
 static int frecuencia = 0; module_param(frecuencia, int, S_IRUGO);
 static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 static int temp = 0;
+static uint32_t ms_temp = -1;
 
 //mutex
 struct mutex open_device_mutex;
@@ -64,24 +65,14 @@ void int_temp(struct timer_list *t) {
     printk("int_temp\n");
     
     //seccion critica
-spin_lock_bh(&lock_int_temp);
+    spin_lock_bh(&lock_int_temp);
 	wake_up_interruptible(&cola);
     temp = 0;
-spin_unlock_bh(&lock_int_temp);
+    spin_unlock_bh(&lock_int_temp);
 }
 
 void add_timer_(long time) {
-    //comprobar si queda tiempo
-    /*if (timer_pending(&timer)){
-		printk("timer pending\n");
-		return;
-	}*/
-
-    //configuramos el temporizador
-	//timer.expires = jiffies + msecs_to_jiffies(time); 
-
     printk("timer added\n");
-
 	mod_timer(&timer, jiffies + msecs_to_jiffies(time));
 }
 
@@ -119,7 +110,7 @@ static int device_release(struct inode *inode, struct file *file) {
     printk("device_release\n");
     return 0;
 }
-static uint32_t ms_temp = -1;
+
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
@@ -136,31 +127,29 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
         if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
         if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
                 
-        printk("kernel %d\t%d\n", ms, freq);
+        //printk("kernel %d\t%d\n", ms, freq);
         
         if (freq > 0) set_spkr_frequency(freq);
         spkr_on();
 
         add_timer_(ms);
         temp = 1;
-printk("hola\n");
+
         spin_unlock_bh(&lock_write);
         if (wait_event_interruptible(cola, temp == 0)) {
             spin_unlock_bh(&lock_write);
             return -ERESTARTSYS;
 		}
-        printk("hola\n");
+
         spkr_off();
         spin_lock_bh(&lock_write);
         cont += 2;
     }
-printk("fin escritura\n");
+
     //ha quedado algo sin leer
     if (i > 0) {
-        printk("revisar lo que queda\n");
         if (ms_temp != -1) { //meter sonido
-        printk("segunda lectura\n");
-        //spin_lock_bh(&lock_write);
+
             if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
             if (freq > 0) set_spkr_frequency(freq);
             spkr_on();
@@ -173,16 +162,15 @@ printk("fin escritura\n");
             }
             spin_lock_bh(&lock_write);
             spkr_off();
-            //spin_unlock_bh(&lock_write);
         } else { //guardar dato
-        printk("guardar dato\n");
+
             if (get_user(ms_temp, (u_int16_t __user *)buf + cont) != 0) {return -1;}
         }
 
     }
-    printk("fin escritura\n");
+
     spin_unlock_bh(&lock_write);
-printk("fin escritura\n");
+
     return count;
 }
 
@@ -240,18 +228,7 @@ static int __init init_initpkr(void) {
 		return -1;
 	}
 
-
-    
-
-
     printk("disp creado\n");
-
-
-    
-    //para probar el modulo
-    //set_spkr_frequency(frecuencia);
-    //spkr_on();
-    
 
     printk("Inicio del driver\n");
     return 0;
@@ -259,8 +236,6 @@ static int __init init_initpkr(void) {
 
 //fin del driver
 static void __exit exit_intpkr(void) {
-    //variables locales
-
     //liberar dispositivo
     unregister_chrdev_region(midispo, 1);
     cdev_del(&c_dev);
