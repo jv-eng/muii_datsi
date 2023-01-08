@@ -38,7 +38,6 @@ static uint32_t ms_temp = -1;
 
 //mutex
 struct mutex open_device_mutex;
-struct mutex write_device_mutex;
 
 //spinlock
 spinlock_t lock_write;
@@ -62,7 +61,7 @@ static struct class *cl;
 /////////////////////////////////////////////////////////////////////////
 
 void int_temp(struct timer_list *t) {
-    printk("int_temp\n");
+    printk("interrupcion int_temp\n");
     
     //seccion critica
     spin_lock_bh(&lock_int_temp);
@@ -129,8 +128,13 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
                 
         //printk("kernel %d\t%d\n", ms, freq);
         
-        if (freq > 0) set_spkr_frequency(freq);
-        spkr_on();
+        if (freq > 0) {
+            set_spkr_frequency(freq);
+            spkr_on();
+        } else { //desactivar el altavoz si hay frecuencia = 0
+            spkr_off();
+        }
+        
 
         add_timer_(ms);
         temp = 1;
@@ -187,7 +191,6 @@ static int __init init_initpkr(void) {
 
     //iniciar los mutex
     mutex_init(&open_device_mutex);
-    mutex_init(&write_device_mutex);
 
     //iniciar spinlock
     spin_lock_init(&lock_write);
@@ -247,7 +250,6 @@ static void __exit exit_intpkr(void) {
 
     //eliminar temporizador
     del_timer_sync(&timer);
-    
     
     printk("fin del modulo\n");
     spkr_off();
