@@ -50,6 +50,7 @@ wait_queue_head_t cola;
 
 //gestion de temporizadores
 static struct timer_list timer;
+static struct timer_list timer_not_buff;
 
 //crear dispositivo
 static dev_t midispo;
@@ -62,28 +63,9 @@ static struct class *cl;
 /*Coidgo*/
 /////////////////////////////////////////////////////////////////////////
 
-void play_sonido(void) {
+void int_temp(struct timer_list *t) {
     //variables locales
     uint16_t freq = 0, ms = 0;
-    printk("prog: sonido\n");
-
-    //obtener sonidos
-    if (kfifo_out(&fifo, &ms, 2) < 0) {return;}
-    if (kfifo_out(&fifo, &freq, 2) < 0) {return;}
-
-    printk("kernel %d\t%d\n", ms, freq);
- 
-    if (freq > 0) {
-        set_spkr_frequency(freq);
-        spkr_on();
-    } else { //desactivar el altavoz si hay frecuencia = 0   
-        spkr_off();
-    }
-
-    add_timer_(ms);
-}
-
-void int_temp(struct timer_list *t) {
     printk("interrupcion int_temp\n");
     
     //seccion critica
@@ -97,7 +79,21 @@ void int_temp(struct timer_list *t) {
         add_timer_(50);
     } else {
         printk("programamos sonido\n");
-        play_sonido();        
+
+        if (kfifo_out(&fifo, &ms, 2) < 0) {return;}
+        if (kfifo_out(&fifo, &freq, 2) < 0) {return;}
+
+        printk("kernel %d\t%d\n", ms, freq);
+
+        if (freq > 0) {
+            set_spkr_frequency(freq);
+            spkr_on();
+        } else { //desactivar el altavoz si hay frecuencia = 0   
+            spkr_off();
+        }
+
+        add_timer_(ms);
+
     }
 
     if (kfifo_is_empty(&fifo)) {
@@ -107,10 +103,25 @@ void int_temp(struct timer_list *t) {
     spin_unlock_bh(&lock_int_temp);
 }
 
+void int_temp_not_buf(struct timer_list *t) {
+    printk("interrupcion int_temp\n");
+    
+    //seccion critica
+    spin_lock_bh(&lock_int_temp);
+	wake_up_interruptible(&cola);
+    temp = 0;
+    spin_unlock_bh(&lock_int_temp);
+}
+
 void add_timer_(long time) {
     printk("timer added\n");
     //spkr_off();
 	mod_timer(&timer, jiffies + msecs_to_jiffies(time));
+}
+void add_timer_not_buf(long time) {
+    printk("timer added\n");
+    //spkr_off();
+	mod_timer(&timer_not_buff, jiffies + msecs_to_jiffies(time));
 }
 
 //device open
@@ -148,8 +159,7 @@ static int device_release(struct inode *inode, struct file *file) {
     return 0;
 }
 
-//device write
-static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
+static int write_buf(const char __user *buf, size_t count) {
     //variables locales
     int i, cont = count, copied = 0;
         
@@ -170,7 +180,7 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
             spin_unlock_bh(&lock_write);
             if (wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)) {
                 spin_unlock_bh(&lock_write);
-                return -ERESTARTSYS;
+                return -1;
             }
             spin_lock_bh(&lock_write);
         }
@@ -192,6 +202,90 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
     printk("fin temp\n");
 
     spin_unlock_bh(&lock_write);
+    return count;
+}
+
+int ms_temp = 0;
+static int write_not_buf(const char __user *buf, size_t count) {
+    //variables locales
+    uint16_t freq, ms;
+    int i, cont = 0;
+        
+    printk("device_write\n");
+
+    //inicio seccion critica, lectura de sonidos
+    spin_lock_bh(&lock_write);
+
+    for (i = count; i >= 4; i -= 4) {
+
+        if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
+        if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
+                
+        //printk("kernel %d\t%d\n", ms, freq);
+        
+        if (freq > 0) {
+            set_spkr_frequency(freq);
+            spkr_on();
+        } else { //desactivar el altavoz si hay frecuencia = 0
+            spkr_off();
+        }
+        
+
+        add_timer_not_buf(ms);
+        temp = 1;
+
+        spin_unlock_bh(&lock_write);
+        if (wait_event_interruptible(cola, temp == 0)) {
+            spin_unlock_bh(&lock_write);
+            return -1;
+		}
+
+        spkr_off();
+        spin_lock_bh(&lock_write);
+        cont += 2;
+    }
+
+    //ha quedado algo sin leer
+    if (i > 0) {
+        if (ms_temp != -1) { //meter sonido
+
+            if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
+            if (freq > 0) {
+                set_spkr_frequency(freq);
+                spkr_on();
+            } else { //desactivar el altavoz si hay frecuencia = 0
+                spkr_off();
+            }
+            add_timer_not_buf(ms_temp);
+            temp = 1;
+            spin_unlock_bh(&lock_write);
+            if (wait_event_interruptible(cola, temp == 0)) {
+                spin_unlock_bh(&lock_write);
+                return -1;
+            }
+            spin_lock_bh(&lock_write);
+            spkr_off();
+        } else { //guardar dato
+            if (get_user(ms_temp, (u_int16_t __user *)buf + cont) != 0) {return -1;}
+        }
+
+    }
+
+    spin_unlock_bh(&lock_write);
+
+    return count;
+}
+
+//device write
+static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
+    
+    if (buffersize == 0) {
+        //caso sin buffer interno
+        write_not_buf(buf, count);
+    } else {
+        //caso con buffer interno
+        write_buf(buf,count);
+    }
 
     return count;
 }
@@ -219,13 +313,16 @@ static int __init init_initpkr(void) {
 
     //inicializar temporizador
     timer_setup(&timer, int_temp, 0);
+    timer_setup(&timer_not_buff, int_temp_not_buf, 0);
 
     //inicializar fifo
-	if (kfifo_alloc(&fifo, buffersize, GFP_KERNEL)) {
-		printk(KERN_WARNING "error kfifo_alloc\n");
-		return -ENOMEM;
-	}
-	printk("size del fifo: %u\n", kfifo_size(&fifo));
+	if (buffersize) {
+        if (kfifo_alloc(&fifo, buffersize, GFP_KERNEL)) {
+            printk(KERN_WARNING "error kfifo_alloc\n");
+            return -ENOMEM;
+        }
+        printk("size del fifo: %u\n", kfifo_size(&fifo));
+    }
     
 
     //crear dispositivo
@@ -279,6 +376,7 @@ static void __exit exit_intpkr(void) {
 
     //eliminar temporizador
     del_timer_sync(&timer);
+    del_timer_sync(&timer_not_buff);
     
     printk("fin del modulo\n");
     spkr_off();
