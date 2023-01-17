@@ -33,13 +33,16 @@ extern void spkr_off(void);
 //variables globales
 static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 static int temp = 0;
+int ms_temp = 0;
 static uint32_t buffersize = 0; module_param(buffersize, int, S_IRUGO);
+int *mute = 0;
 
 //kfifo
 static struct kfifo fifo;
 
 //mutex
 struct mutex open_device_mutex;
+struct mutex ioctl_mutex;
 
 //spinlock
 spinlock_t lock_write;
@@ -57,6 +60,11 @@ static dev_t midispo;
 int spkr_minor = 0; module_param(spkr_minor, int, S_IRUGO);
 static struct cdev c_dev;
 static struct class *cl;
+
+//variables de ioctl
+#define MAGIC_NO '9'
+#define SPKR_SET_MUTE_STATE _IOR(MAGIC_NO, 1, int *) 
+#define SPKR_GET_MUTE_STATE _IOR(MAGIC_NO, 2, int *) 
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -87,7 +95,7 @@ void int_temp(struct timer_list *t) {
 
         if (freq > 0) {
             set_spkr_frequency(freq);
-            spkr_on();
+            if (mute[0] == 0) {spkr_on();}
         } else { //desactivar el altavoz si hay frecuencia = 0   
             spkr_off();
         }
@@ -104,7 +112,7 @@ void int_temp(struct timer_list *t) {
 }
 
 void int_temp_not_buf(struct timer_list *t) {
-    printk("interrupcion int_temp\n");
+    printk("interrupcion int_temp_not_buf\n");
     
     //seccion critica
     spin_lock_bh(&lock_int_temp);
@@ -205,7 +213,7 @@ static int write_buf(const char __user *buf, size_t count) {
     return count;
 }
 
-int ms_temp = 0;
+
 static int write_not_buf(const char __user *buf, size_t count) {
     //variables locales
     uint16_t freq, ms;
@@ -225,7 +233,7 @@ static int write_not_buf(const char __user *buf, size_t count) {
         
         if (freq > 0) {
             set_spkr_frequency(freq);
-            spkr_on();
+            if (mute[0] == 0) {spkr_on();}
         } else { //desactivar el altavoz si hay frecuencia = 0
             spkr_off();
         }
@@ -252,7 +260,7 @@ static int write_not_buf(const char __user *buf, size_t count) {
             if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
             if (freq > 0) {
                 set_spkr_frequency(freq);
-                spkr_on();
+                if (mute[0] == 0) {spkr_on();}
             } else { //desactivar el altavoz si hay frecuencia = 0
                 spkr_off();
             }
@@ -290,12 +298,38 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
     return count;
 }
 
+static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+    printk("mute\n");
+    mutex_lock(&ioctl_mutex);
+printk("mute on %d\n", cmd == SPKR_GET_MUTE_STATE);
+    switch(cmd) {
+        case SPKR_SET_MUTE_STATE:
+            if (copy_from_user(mute, (int *) arg, sizeof(int *))) {     
+				return -EFAULT;
+            }  
+			if (mute[0]) {
+				spkr_off();
+            }
+            break;
+        case SPKR_GET_MUTE_STATE:
+            if(copy_to_user((int *)arg, mute, sizeof(int *))) {
+				return -EFAULT;
+            }
+            printk("mute off\n");
+            break;
+    }
+
+    mutex_unlock(&ioctl_mutex);
+    return 0;
+}
+
 //definicion de funciones del driver
 static struct file_operations fops = {
     .owner = THIS_MODULE,
     .open = device_open,
     .release = device_release,
-    .write = device_write
+    .write = device_write,
+    .unlocked_ioctl = device_ioctl
 };
 
 //inicio del driver
@@ -303,6 +337,7 @@ static int __init init_initpkr(void) {
 
     //iniciar los mutex
     mutex_init(&open_device_mutex);
+    mutex_init(&ioctl_mutex);
 
     //iniciar spinlock
     spin_lock_init(&lock_write);
