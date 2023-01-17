@@ -31,10 +31,12 @@ extern void spkr_on(void);
 extern void spkr_off(void);
 
 //variables globales
-static int frecuencia = 0; module_param(frecuencia, int, S_IRUGO);
 static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 static int temp = 0;
-static uint32_t ms_temp = -1;
+static uint32_t buffersize = 0; module_param(buffersize, int, S_IRUGO);
+
+//kfifo
+static struct kfifo fifo;
 
 //mutex
 struct mutex open_device_mutex;
@@ -60,18 +62,54 @@ static struct class *cl;
 /*Coidgo*/
 /////////////////////////////////////////////////////////////////////////
 
+void play_sonido(void) {
+    //variables locales
+    uint16_t freq = 0, ms = 0;
+    printk("prog: sonido\n");
+
+    //obtener sonidos
+    if (kfifo_out(&fifo, &ms, 2) < 0) {return;}
+    if (kfifo_out(&fifo, &freq, 2) < 0) {return;}
+
+    printk("kernel %d\t%d\n", ms, freq);
+ 
+    if (freq > 0) {
+        set_spkr_frequency(freq);
+        spkr_on();
+    } else { //desactivar el altavoz si hay frecuencia = 0   
+        spkr_off();
+    }
+
+    add_timer_(ms);
+}
+
 void int_temp(struct timer_list *t) {
     printk("interrupcion int_temp\n");
     
     //seccion critica
     spin_lock_bh(&lock_int_temp);
-	wake_up_interruptible(&cola);
-    temp = 0;
+
+    //si hay un 
+    if (kfifo_len(&fifo) < 4) {
+        printk("despertar proceso\n");
+	    wake_up_interruptible(&cola);
+        temp = 0;
+        add_timer_(50);
+    } else {
+        printk("programamos sonido\n");
+        play_sonido();        
+    }
+
+    if (kfifo_is_empty(&fifo)) {
+        spkr_off();
+    }
+
     spin_unlock_bh(&lock_int_temp);
 }
 
 void add_timer_(long time) {
     printk("timer added\n");
+    //spkr_off();
 	mod_timer(&timer, jiffies + msecs_to_jiffies(time));
 }
 
@@ -113,69 +151,45 @@ static int device_release(struct inode *inode, struct file *file) {
 //device write
 static ssize_t device_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
     //variables locales
-    uint16_t freq, ms;
-    int i, cont = 0;
+    int i, cont = count, copied = 0;
         
     printk("device_write\n");
 
     //inicio seccion critica, lectura de sonidos
     spin_lock_bh(&lock_write);
 
-    for (i = count; i >= 4; i -= 4) {
-
-        if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
-        if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
-                
+    for (i = 0; i < count; i += 4) {
         //printk("kernel %d\t%d\n", ms, freq);
         
-        if (freq > 0) {
-            set_spkr_frequency(freq);
-            spkr_on();
-        } else { //desactivar el altavoz si hay frecuencia = 0
-            spkr_off();
-        }
-        
-
-        add_timer_(ms);
-        temp = 1;
-
-        spin_unlock_bh(&lock_write);
-        if (wait_event_interruptible(cola, temp == 0)) {
-            spin_unlock_bh(&lock_write);
-            return -ERESTARTSYS;
-		}
-
-        spkr_off();
-        spin_lock_bh(&lock_write);
-        cont += 2;
-    }
-
-    //ha quedado algo sin leer
-    if (i > 0) {
-        if (ms_temp != -1) { //meter sonido
-
-            if (get_user(freq, (u_int16_t __user *)buf + cont) != 0) {return -1;}
-            if (freq > 0) {
-                set_spkr_frequency(freq);
-                spkr_on();
-            } else { //desactivar el altavoz si hay frecuencia = 0
-                spkr_off();
-            }
-            add_timer_(ms_temp);
+        //sonido
+        //si no queda espacio, dormimos el proceso
+        if (kfifo_avail(&fifo) < 4) {
+            add_timer_(50);
             temp = 1;
+
             spin_unlock_bh(&lock_write);
-            if (wait_event_interruptible(cola, temp == 0)) {
+            if (wait_event_interruptible(cola, kfifo_avail(&fifo) > 0)) {
                 spin_unlock_bh(&lock_write);
                 return -ERESTARTSYS;
             }
             spin_lock_bh(&lock_write);
-            spkr_off();
-        } else { //guardar dato
-
-            if (get_user(ms_temp, (u_int16_t __user *)buf + cont) != 0) {return -1;}
         }
+        printk("guardamos sonido\n");
+        
+         
+        //guardamos sonido
+        if (kfifo_from_user(&fifo, buf + i, (cont >= 4) ? 4 : cont, &copied) != 0) {
+            printk("error al leer los datos del buffer\n");
+            return -1;
+        }
+        printk("sonidos guardados\n");
 
+        spkr_off();
+        cont -= 4;
     }
+    printk("iniciar temp\n");
+    add_timer_(50);
+    printk("fin temp\n");
 
     spin_unlock_bh(&lock_write);
 
@@ -205,6 +219,13 @@ static int __init init_initpkr(void) {
 
     //inicializar temporizador
     timer_setup(&timer, int_temp, 0);
+
+    //inicializar fifo
+	if (kfifo_alloc(&fifo, buffersize, GFP_KERNEL)) {
+		printk(KERN_WARNING "error kfifo_alloc\n");
+		return -ENOMEM;
+	}
+	printk("size del fifo: %u\n", kfifo_size(&fifo));
     
 
     //crear dispositivo
@@ -236,6 +257,7 @@ static int __init init_initpkr(void) {
 	}
 
     printk("disp creado\n");
+    printk("Major: %d\n",MAJOR(midispo));
 
     printk("Inicio del driver\n");
     return 0;
@@ -251,6 +273,9 @@ static void __exit exit_intpkr(void) {
 
     //destruir mutex
     mutex_destroy(&open_device_mutex);
+
+    //destruir fifo
+    kfifo_free(&fifo);
 
     //eliminar temporizador
     del_timer_sync(&timer);
