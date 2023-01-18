@@ -47,7 +47,6 @@ struct mutex ioctl_mutex;
 //spinlock
 spinlock_t lock_write;
 spinlock_t lock_int_temp;
-spinlock_t lock_test;
 
 //gestion de procesos
 wait_queue_head_t cola;
@@ -335,7 +334,6 @@ static int __init init_initpkr(void) {
     //iniciar spinlock
     spin_lock_init(&lock_write);
     spin_lock_init(&lock_int_temp);
-    spin_lock_init(&lock_test);
     
     //gestionar procesos
     init_waitqueue_head(&cola);
