@@ -82,17 +82,14 @@ void int_temp(struct timer_list *t) {
 
     //si hay un 
     if (kfifo_len(&fifo) < 4) {
-        printk("despertar proceso\n");
 	    wake_up_interruptible(&cola);
         temp = 0;
         add_timer_(50);
     } else {
-        printk("programamos sonido\n");
-
         if (kfifo_out(&fifo, &ms, 2) < 0) {return;}
         if (kfifo_out(&fifo, &freq, 2) < 0) {return;}
 
-        printk("kernel %d\t%d\n", ms, freq);
+        //printk("kernel %d\t%d\n", ms, freq);
 
         if (freq > 0) {
             set_spkr_frequency(freq);
@@ -178,8 +175,6 @@ static int write_buf(const char __user *buf, size_t count) {
     spin_lock_bh(&lock_write);
 
     for (i = 0; i < count; i += 4) {
-        //printk("kernel %d\t%d\n", ms, freq);
-        
         //sonido
         //si no queda espacio, dormimos el proceso
         if (kfifo_avail(&fifo) < 4) {
@@ -201,14 +196,11 @@ static int write_buf(const char __user *buf, size_t count) {
             printk("error al leer los datos del buffer\n");
             return -1;
         }
-        printk("sonidos guardados\n");
 
         spkr_off();
         cont -= 4;
     }
-    printk("iniciar temp\n");
     add_timer_(50);
-    printk("fin temp\n");
 
     spin_unlock_bh(&lock_write);
     return count;
@@ -230,8 +222,6 @@ static int write_not_buf(const char __user *buf, size_t count) {
         if (get_user(ms, (u_int16_t __user *)buf + cont) != 0) {return -1;}
         if (get_user(freq, (u_int16_t __user *)buf + cont + 1) != 0) {return -1;}
                 
-        //printk("kernel %d\t%d\n", ms, freq);
-        
         if (freq > 0) {
             set_spkr_frequency(freq);
             if (mute[0] == 0) {spkr_on();}
