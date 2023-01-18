@@ -35,7 +35,7 @@ static int device_open_cont = 0;	//ver si el dispositivo esta en uso
 static int temp = 0;
 int ms_temp = 0;
 static uint32_t buffersize = 0; module_param(buffersize, int, S_IRUGO);
-int *mute = 0;
+int mute[1];
 
 //kfifo
 static struct kfifo fifo;
@@ -47,6 +47,7 @@ struct mutex ioctl_mutex;
 //spinlock
 spinlock_t lock_write;
 spinlock_t lock_int_temp;
+spinlock_t lock_test;
 
 //gestion de procesos
 wait_queue_head_t cola;
@@ -299,23 +300,24 @@ static ssize_t device_write(struct file *filp, const char __user *buf, size_t co
 }
 
 static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+    int *temp = mute[0];
     printk("mute\n");
     mutex_lock(&ioctl_mutex);
-printk("mute on %d\n", cmd == SPKR_GET_MUTE_STATE);
+    
     switch(cmd) {
         case SPKR_SET_MUTE_STATE:
-            if (copy_from_user(mute, (int *) arg, sizeof(int *))) {     
+            if (copy_from_user(&temp, (int *) arg, sizeof(int))) {     
 				return -EFAULT;
-            }  
+            }
+            mute[0] = temp;  
 			if (mute[0]) {
 				spkr_off();
             }
             break;
-        case SPKR_GET_MUTE_STATE:
-            if(copy_to_user((int *)arg, mute, sizeof(int *))) {
+        case SPKR_GET_MUTE_STATE:            
+            if(copy_to_user((int *)arg, &temp, sizeof(int))) {
 				return -EFAULT;
             }
-            printk("mute off\n");
             break;
     }
 
@@ -338,10 +340,12 @@ static int __init init_initpkr(void) {
     //iniciar los mutex
     mutex_init(&open_device_mutex);
     mutex_init(&ioctl_mutex);
+    mute[0] = 0;
 
     //iniciar spinlock
     spin_lock_init(&lock_write);
     spin_lock_init(&lock_int_temp);
+    spin_lock_init(&lock_test);
     
     //gestionar procesos
     init_waitqueue_head(&cola);
