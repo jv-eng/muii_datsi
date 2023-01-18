@@ -4,6 +4,10 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
+#define MAGIC_NO '9'
+#define SPKR_SET_MUTE_STATE _IOR(MAGIC_NO, 1, int *) 
+#define SPKR_GET_MUTE_STATE _IOR(MAGIC_NO, 2, int *) 
+
 int main(int argc, char *argv[]) {
 	int sd;
 	
@@ -16,15 +20,15 @@ int main(int argc, char *argv[]) {
 		perror("open");
 		return 1;
 	}
-#ifndef SPKR_SET_MUTE_STATE
-#error Debe definir el ioctl para la operación mute
-#else
+//#ifndef SPKR_SET_MUTE_STATE
+//#error Debe definir el ioctl para la operación mute
+//#else
 	int param = atoi(argv[1]);
 	if (ioctl(sd, SPKR_SET_MUTE_STATE, &param) <0) {
 		perror("ioctl");
 		return 1;
 	}
-#endif
+//#endif
 	return 0;
 }
 
