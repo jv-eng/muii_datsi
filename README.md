@@ -6,4 +6,4 @@ A continuación, se listan lass distintas asignaturas con sus proyectos correspp
     -   Proyecto: programación de un driver de audio para Linux (seu_proyecto_driver)
     -   Práctica: programación de dispositivos (seu_prac_prog_dispositivos)
 -   Sistemas operativos avanzados    
-    -   Proyecto: minikernel (soa_minikernel)
+    -   Proyecto: minikernel (minikernel)
