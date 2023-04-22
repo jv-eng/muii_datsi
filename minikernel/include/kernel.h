@@ -1,9 +1,9 @@
 /*
  *  minikernel/include/kernel.h
  *
- *  Minikernel. Versión 1.0
+ *  Minikernel. Versiï¿½n 1.0
  *
- *  Fernando Pérez Costoya
+ *  Fernando Pï¿½rez Costoya
  *
  */
 
@@ -43,7 +43,7 @@ typedef struct BCP_t {
  *
  * Definicion del tipo que corresponde con la cabecera de una lista
  * de BCPs. Este tipo se puede usar para diversas listas (procesos listos,
- * procesos bloqueados en semáforo, etc.).
+ * procesos bloqueados en semï¿½foro, etc.).
  *
  */
 
@@ -72,7 +72,7 @@ lista_BCPs lista_listos= {NULL, NULL};
 
 /*
  *
- * Definición del tipo que corresponde con una entrada en la tabla de
+ * Definiciï¿½n del tipo que corresponde con una entrada en la tabla de
  * llamadas al sistema.
  *
  */
@@ -97,3 +97,20 @@ servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
 
 #endif /* _KERNEL_H */
 
+/*
+Funcionalidades aÃ±adidas
+*/
+int obtener_id_pr();
+int tiempos_proceso(struct tiempos_ejec *t_ejec);
+
+//mutex
+#define NO_RECURSIVO 0
+#define RECURSIVO 1
+int crear_mutex(char *nombre, int tipo);
+int abrir_mutex(char *nombre);
+int lock(unsigned int mutexid);
+int unlock(unsigned int mutexid);
+int cerrar_mutex(unsigned int mutexid);
+
+int leer_caracter();
+int dormir(unsigned int segundos);
