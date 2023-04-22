@@ -33,13 +33,13 @@ int escribir(char *texto, unsigned int longi);
 #endif /* SERVICIOS_H */
 
 
-//
+//estructuras
 struct tiempos_ejec {
     int usuario;
     int sistema;
 };
 
-int obtener_id_pr();
+int obtener_id_pr(); //nº 3
 int tiempos_proceso(struct tiempos_ejec *t_ejec);
 
 //mutex
@@ -52,4 +52,4 @@ int unlock(unsigned int mutexid);
 int cerrar_mutex(unsigned int mutexid);
 
 int leer_caracter();
-int dormir(unsigned int segundos);
+int dormir(unsigned int segundos); //nº 4

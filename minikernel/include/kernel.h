@@ -18,6 +18,10 @@
 #ifndef _KERNEL_H
 #define _KERNEL_H
 
+//mutex
+#define NO_RECURSIVO 0
+#define RECURSIVO 1
+
 #include "const.h"
 #include "HAL.h"
 #include "llamsis.h"
@@ -37,6 +41,10 @@ typedef struct BCP_t {
         void * pila;			/* dir. inicial de la pila */
 	BCPptr siguiente;		/* puntero a otro BCP */
 	void *info_mem;			/* descriptor del mapa de memoria */
+
+	//añadido
+	int nseg_dormir;
+	int tiempo_cpu;
 } BCP;
 
 /*
@@ -69,6 +77,7 @@ BCP tabla_procs[MAX_PROC];
  * Variable global que representa la cola de procesos listos
  */
 lista_BCPs lista_listos= {NULL, NULL};
+lista_BCPs lista_esperando = {NULL, NULL};
 
 /*
  *
@@ -88,29 +97,23 @@ int sis_crear_proceso();
 int sis_terminar_proceso();
 int sis_escribir();
 
+/********************************************Funcionalidades añadidas**********************************************/
+////////funciones auxiliares
+void cambiar_proceso(lista_BCPs new_list);
+
+////////funcionalidades
+int obtener_id_pr();
+int dormir();
+
+/******************************************************************************************************************/
+
 /*
  * Variable global que contiene las rutinas que realizan cada llamada
  */
 servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
 					{sis_terminar_proceso},
-					{sis_escribir}};
+					{sis_escribir},
+					{obtener_id_pr},
+					{dormir}};
 
 #endif /* _KERNEL_H */
-
-/*
-Funcionalidades añadidas
-*/
-int obtener_id_pr();
-int tiempos_proceso(struct tiempos_ejec *t_ejec);
-
-//mutex
-#define NO_RECURSIVO 0
-#define RECURSIVO 1
-int crear_mutex(char *nombre, int tipo);
-int abrir_mutex(char *nombre);
-int lock(unsigned int mutexid);
-int unlock(unsigned int mutexid);
-int cerrar_mutex(unsigned int mutexid);
-
-int leer_caracter();
-int dormir(unsigned int segundos);

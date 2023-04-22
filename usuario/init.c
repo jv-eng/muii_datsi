@@ -1,22 +1,22 @@
 /*
  * usuario/init.c
  *
- *  Minikernel. Versión 1.0
+ *  Minikernel. Versiï¿½n 1.0
  *
- *  Fernando Pérez Costoya
+ *  Fernando Pï¿½rez Costoya
  *
  */
 
-/* Programa inicial que arranca el S.O. Sólo se ejecutarán los programas
-   que se incluyan aquí, que, evidentemente, pueden ejecutar otros
+/* Programa inicial que arranca el S.O. Sï¿½lo se ejecutarï¿½n los programas
+   que se incluyan aquï¿½, que, evidentemente, pueden ejecutar otros
    programas...
 */
 
 /*
  *
- * Contiene las mismas pruebas que se realizan para evaluar la práctica.
+ * Contiene las mismas pruebas que se realizan para evaluar la prï¿½ctica.
  * Para llevar a cabo cada prueba, comente y descomente
- * las líneas correspondientes. En la versión inicial, la parte descomentada
+ * las lï¿½neas correspondientes. En la versiï¿½n inicial, la parte descomentada
  * se corresponde con funcionalidad ya implementada en el material de apoyo.
  *
  */
@@ -31,7 +31,7 @@ int main(){
 FUNCIONALIDAD YA IMPLEMENTADA EN EL MATERIAL DE APOYO. UNA VEZ QUE IMPLEMENTE
 ALGO COMENTE ESTA PARTE Y DESCOMENTE LA PRUEBA CORRESPONDIENTE */
 
-	if (crear_proceso("simplon")<0)
+/*	if (crear_proceso("simplon")<0)
                 printf("Error creando simplon\n");
 
 	if (crear_proceso("excep_arit")<0)
@@ -41,7 +41,7 @@ ALGO COMENTE ESTA PARTE Y DESCOMENTE LA PRUEBA CORRESPONDIENTE */
 		printf("Error creando excep_mem\n");
 	
 	if (crear_proceso("noexiste")<0)
-		printf("Error creando noexiste\n");
+		printf("Error creando noexiste\n");*/
 
 /* FIN PRUEBA INICIAL */
 
@@ -54,10 +54,10 @@ ALGO COMENTE ESTA PARTE Y DESCOMENTE LA PRUEBA CORRESPONDIENTE */
 }
 */
 
-/* PRUEBA DE LA LLAMADA DORMIR
+/* PRUEBA DE LA LLAMADA DORMIR*/
 	if (crear_proceso("prueba_dormir")<0)
 		printf("Error creando prueba_dormir\n");
-*/
+
 
 /* PRUEBA DE LA LLAMADA TIEMPOS_PROCESO
 	if (crear_proceso("prueba_tiempos")<0)

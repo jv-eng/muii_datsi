@@ -208,7 +208,28 @@ static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
 
-        return;
+	//obtener primer elemento de la lista
+	BCP * proc_esperando = lista_esperando.primero;
+//if (proc_esperando != NULL) printf("id esperando: %d\n",proc_esperando->id);
+	//mientras tengamos procesos, revisar
+	while (proc_esperando != NULL) {
+		//decrementar contador
+		proc_esperando->nseg_dormir--;
+//		printf("decremento: %d\n",proc_esperando->nseg_dormir);
+		//si ya ha cumplido, cambiamos de lista
+		if (proc_esperando->nseg_dormir == 0) {
+			proc_esperando->tiempo_cpu = 10;
+			eliminar_elem(&lista_esperando, proc_esperando);
+			insertar_ultimo(&lista_listos, proc_esperando);
+		}
+		proc_esperando = proc_esperando->siguiente;
+	}
+	p_proc_actual->tiempo_cpu--;
+	if (p_proc_actual->tiempo_cpu == 0) {
+		activar_int_SW();
+	}
+	
+    return;
 }
 
 /*
@@ -266,6 +287,10 @@ static int crear_tarea(char *prog){
 			&(p_proc->contexto_regs));
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
+
+		//inicializar nuevos campos
+		p_proc->nseg_dormir = 0;
+		p_proc->tiempo_cpu = 10;
 
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
@@ -326,6 +351,43 @@ int sis_terminar_proceso(){
 
         return 0; /* no deber�a llegar aqui */
 }
+
+//////////////////////////////////////////////FUNCIONALIDADES AÑADIDAS//////////////////////////////////////////////////////
+
+////////////////Funciones auxiliares
+//cambiar proceso en ejecucion
+void cambiar_proceso(lista_BCPs new_list) {
+	//obtener bcp proceso actual
+	BCP * actual  = p_proc_actual;
+	//sacar proceso de la lista y guardar en otra
+	eliminar_elem(&lista_listos, actual);
+	insertar_ultimo(&lista_esperando, actual);
+	//replanificar
+	p_proc_actual = planificador();
+	//cambio de contexto
+	cambio_contexto(&(actual->contexto_regs), &(p_proc_actual->contexto_regs));
+}
+
+////////////////Funcionalidades
+//obtener id de un proceso
+int obtener_id_pr() {
+	return p_proc_actual->id;
+}
+
+//dormir un proceso
+int dormir() {
+	//printf("nseg = %d\n",leer_registro(1));
+	//leer nº de segundos
+	unsigned int nseg = leer_registro(1);
+	//modificar BCP
+	p_proc_actual->nseg_dormir = nseg * TICK;
+	//cambiar de proceso
+	cambiar_proceso(lista_esperando);
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 /*
  *
