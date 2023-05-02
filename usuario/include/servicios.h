@@ -39,8 +39,11 @@ struct tiempos_ejec {
     int sistema;
 };
 
+//funciones
 int obtener_id_pr(); //nº 3
-int tiempos_proceso(struct tiempos_ejec *t_ejec);
+int tiempos_proceso(struct tiempos_ejec *t_ejec); //nº5
+int leer_caracter();
+int dormir(unsigned int segundos); //nº 4
 
 //mutex
 #define NO_RECURSIVO 0
@@ -50,6 +53,3 @@ int abrir_mutex(char *nombre);
 int lock(unsigned int mutexid);
 int unlock(unsigned int mutexid);
 int cerrar_mutex(unsigned int mutexid);
-
-int leer_caracter();
-int dormir(unsigned int segundos); //nº 4

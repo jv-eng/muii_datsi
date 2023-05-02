@@ -105,7 +105,7 @@ static void eliminar_elem(lista_BCPs *lista, BCP * proc){
 static void espera_int(){
 	int nivel;
 
-	printk("-> NO HAY LISTOS. ESPERA INT\n");
+	//printk("-> NO HAY LISTOS. ESPERA INT\n");
 
 	/* Baja al m�nimo el nivel de interrupci�n mientras espera */
 	nivel=fijar_nivel_int(NIVEL_1);
@@ -206,29 +206,27 @@ static void int_terminal(){
  */
 static void int_reloj(){
 
-	printk("-> TRATANDO INT. DE RELOJ\n");
-
+	//printk("-> TRATANDO INT. DE RELOJ\n");
+	
 	//obtener primer elemento de la lista
 	BCP * proc_esperando = lista_esperando.primero;
-//if (proc_esperando != NULL) printf("id esperando: %d\n",proc_esperando->id);
+	int nivel_int = 0;
+
 	//mientras tengamos procesos, revisar
-	while (proc_esperando != NULL) {
+	while (proc_esperando) {
 		//decrementar contador
-		proc_esperando->nseg_dormir--;
-//		printf("decremento: %d\n",proc_esperando->nseg_dormir);
+		if (proc_esperando->nseg_dormir > 0) proc_esperando->nseg_dormir--;
+		printf("%d\n",proc_esperando->nseg_dormir);
 		//si ya ha cumplido, cambiamos de lista
 		if (proc_esperando->nseg_dormir == 0) {
-			proc_esperando->tiempo_cpu = 10;
+			nivel_int = fijar_nivel_int(NIVEL_3);
 			eliminar_elem(&lista_esperando, proc_esperando);
 			insertar_ultimo(&lista_listos, proc_esperando);
+			fijar_nivel_int(nivel_int);
 		}
 		proc_esperando = proc_esperando->siguiente;
 	}
-	p_proc_actual->tiempo_cpu--;
-	if (p_proc_actual->tiempo_cpu == 0) {
-		activar_int_SW();
-	}
-	
+
     return;
 }
 
@@ -290,7 +288,7 @@ static int crear_tarea(char *prog){
 
 		//inicializar nuevos campos
 		p_proc->nseg_dormir = 0;
-		p_proc->tiempo_cpu = 10;
+		//p_proc->tiempo_cpu = 10;
 
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
@@ -356,12 +354,16 @@ int sis_terminar_proceso(){
 
 ////////////////Funciones auxiliares
 //cambiar proceso en ejecucion
-void cambiar_proceso(lista_BCPs new_list) {
+void cambiar_proceso(lista_BCPs * new_list) {
 	//obtener bcp proceso actual
 	BCP * actual  = p_proc_actual;
+	int nivel_int = 0;
+
 	//sacar proceso de la lista y guardar en otra
+	nivel_int = fijar_nivel_int(NIVEL_3);
 	eliminar_elem(&lista_listos, actual);
-	insertar_ultimo(&lista_esperando, actual);
+	insertar_ultimo(new_list, actual);
+	fijar_nivel_int(nivel_int);
 	//replanificar
 	p_proc_actual = planificador();
 	//cambio de contexto
@@ -376,16 +378,20 @@ int obtener_id_pr() {
 
 //dormir un proceso
 int dormir() {
-	//printf("nseg = %d\n",leer_registro(1));
 	//leer nº de segundos
 	unsigned int nseg = leer_registro(1);
 	//modificar BCP
 	p_proc_actual->nseg_dormir = nseg * TICK;
 	//cambiar de proceso
-	cambiar_proceso(lista_esperando);
+	cambiar_proceso(&lista_esperando);
 	return 0;
 }
 
+//ver numero de interrupciones de reloj
+int tiempos_proceso() {
+	struct tiempos_ejec * t_ejec = (struct tiempos_ejec *)leer_registro(1);
+	return 0;
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 

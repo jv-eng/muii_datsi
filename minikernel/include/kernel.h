@@ -99,21 +99,28 @@ int sis_escribir();
 
 /********************************************Funcionalidades añadidas**********************************************/
 ////////funciones auxiliares
-void cambiar_proceso(lista_BCPs new_list);
+void cambiar_proceso(lista_BCPs * new_list);
 
 ////////funcionalidades
 int obtener_id_pr();
 int dormir();
+int tiempos_proceso();
 
+////////estructuras
+struct tiempos_ejec {
+    int usuario;
+    int sistema;
+};
 /******************************************************************************************************************/
 
 /*
  * Variable global que contiene las rutinas que realizan cada llamada
  */
 servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
-					{sis_terminar_proceso},
-					{sis_escribir},
-					{obtener_id_pr},
-					{dormir}};
+										{sis_terminar_proceso},
+										{sis_escribir},
+										{obtener_id_pr},
+										{dormir},
+										{tiempos_proceso}};
 
 #endif /* _KERNEL_H */
