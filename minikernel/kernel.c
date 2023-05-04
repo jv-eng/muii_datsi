@@ -201,33 +201,47 @@ static void int_terminal(){
         return;
 }
 
+//tiempo de ejecucion
+int n_ticks_ejec = 0;
 /*
  * Tratamiento de interrupciones de reloj
  */
+//int n_int = 0;
 static void int_reloj(){
 
 	//printk("-> TRATANDO INT. DE RELOJ\n");
-	
-	//obtener primer elemento de la lista
-	BCP * proc_esperando = lista_esperando.primero;
-	int nivel_int = 0;
 
-	//mientras tengamos procesos, revisar
-	while (proc_esperando) {
-		//decrementar contador
-		if (proc_esperando->nseg_dormir > 0) proc_esperando->nseg_dormir--;
-		printf("%d\n",proc_esperando->nseg_dormir);
-		//si ya ha cumplido, cambiamos de lista
-		if (proc_esperando->nseg_dormir == 0) {
-			nivel_int = fijar_nivel_int(NIVEL_3);
-			eliminar_elem(&lista_esperando, proc_esperando);
-			insertar_ultimo(&lista_listos, proc_esperando);
-			fijar_nivel_int(nivel_int);
-		}
-		proc_esperando = proc_esperando->siguiente;
+	//obtener primer elemento
+	BCP * actual = lista_listos.primero;	
+	int nivel_int = 0;
+	//actualizr tiempo de uso de cppu por proceso
+	n_ticks_ejec++;
+	while (actual) {
+		if (viene_de_modo_usuario()) actual->n_sec_u++; else actual->n_sec_s++;
+		actual = actual->siguiente;
 	}
 
-    return;
+	//printf("int = %d\n",n_int); n_int++;
+
+	//revisar el resto
+	actual = lista_esperando.primero;
+	nivel_int = fijar_nivel_int(NIVEL_3);
+	while (actual) {
+		//printf("nseg = %d\n",actual->nseg_dormir);
+		//actualizar tiempo de uso de cpu
+		if (viene_de_modo_usuario()) actual->n_sec_u++; else actual->n_sec_s++;
+		//decrementar
+		actual->nseg_dormir--;
+		//si hemos llegado a 0, liberamos
+		if (actual->nseg_dormir <= 0) {
+			actual->estado = LISTO;
+			eliminar_elem(&lista_esperando, actual);
+			insertar_ultimo(&lista_listos,actual);
+		}
+		actual = actual->siguiente;
+	}
+	fijar_nivel_int(nivel_int);
+	return;
 }
 
 /*
@@ -355,19 +369,24 @@ int sis_terminar_proceso(){
 ////////////////Funciones auxiliares
 //cambiar proceso en ejecucion
 void cambiar_proceso(lista_BCPs * new_list) {
-	//obtener bcp proceso actual
-	BCP * actual  = p_proc_actual;
+	//obtener proceso actual
+	BCP * actual = p_proc_actual;
 	int nivel_int = 0;
-
-	//sacar proceso de la lista y guardar en otra
+	//mover proceso de lista
 	nivel_int = fijar_nivel_int(NIVEL_3);
-	eliminar_elem(&lista_listos, actual);
-	insertar_ultimo(new_list, actual);
-	fijar_nivel_int(nivel_int);
+	actual->estado = BLOQUEADO;
+	eliminar_elem(&lista_listos,actual);
+	insertar_ultimo(&lista_esperando,actual);
 	//replanificar
 	p_proc_actual = planificador();
+	fijar_nivel_int(nivel_int);
 	//cambio de contexto
-	cambio_contexto(&(actual->contexto_regs), &(p_proc_actual->contexto_regs));
+	cambio_contexto(&(actual->contexto_regs),&(p_proc_actual->contexto_regs));
+}
+
+void manejador_excep_mem() {
+	printf("Excepcion de memoria, finalizar proceso\n");
+	sis_terminar_proceso();
 }
 
 ////////////////Funcionalidades
@@ -379,7 +398,7 @@ int obtener_id_pr() {
 //dormir un proceso
 int dormir() {
 	//leer nº de segundos
-	unsigned int nseg = leer_registro(1);
+	unsigned int nseg = (unsigned int)leer_registro(1);
 	//modificar BCP
 	p_proc_actual->nseg_dormir = nseg * TICK;
 	//cambiar de proceso
@@ -387,9 +406,56 @@ int dormir() {
 	return 0;
 }
 
+//leer un caracter
+int leer_caracter() {
+	return 0;
+}
+
 //ver numero de interrupciones de reloj
 int tiempos_proceso() {
+	int nivel_int = 0;
+	//crear manejador para tratar excepciones de memoria
+	instal_man_int(EXC_MEM, manejador_excep_mem);
+	//obtener dato pasado como arg
 	struct tiempos_ejec * t_ejec = (struct tiempos_ejec *)leer_registro(1);
+	//si pasan algo, tratarlo
+	nivel_int = fijar_nivel_int(NIVEL_3);
+	if (t_ejec) {
+		t_ejec->usuario = p_proc_actual->n_sec_u;
+		t_ejec->sistema = p_proc_actual->n_sec_s;
+	} else {
+		//si no pasan nada, iniciar
+		n_ticks_ejec = 0;
+	}
+	fijar_nivel_int(nivel_int);
+	//printf("usuario: %d\tsistema: %d\n",n_ticks_ejec_u,n_ticks_ejec_s);
+	return n_ticks_ejec;
+}
+
+/////////////////////////mutex
+int crear_mutex() { 
+	//obtener argumentos de la llamada
+	char * nombre = (char *)leer_registro(1);
+	int tipo = (int)leer_registro(2);
+
+	//comprobar arg
+	/*if (strlen(nombre) > MAX_NOM_MUT) {
+		printf("Error, nombre del mutex demasiado largo\n");
+		return -1;
+	}*/
+
+	return 0;
+}
+int abrir_mutex() {
+	return 0;
+}
+int lock() {
+	return 0;
+}
+int unlock() {
+	return 0;
+}
+int cerrar_mutex() {
 	return 0;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -43,8 +43,10 @@ typedef struct BCP_t {
 	void *info_mem;			/* descriptor del mapa de memoria */
 
 	//añadido
-	int nseg_dormir;
-	int tiempo_cpu;
+	int nseg_dormir; //numero de segundos a dormir
+	int n_sec_s; //numero de ticks de reloj en modo sistema
+	int n_sec_u; //numero de ticks de reloj en modo usuario
+	int n_mutex; //numero de mutex
 } BCP;
 
 /*
@@ -105,11 +107,26 @@ void cambiar_proceso(lista_BCPs * new_list);
 int obtener_id_pr();
 int dormir();
 int tiempos_proceso();
+int leer_caracter();
+
+//mutex
+int crear_mutex();
+int abrir_mutex();
+int lock();
+int unlock();
+int cerrar_mutex();
 
 ////////estructuras
 struct tiempos_ejec {
     int usuario;
     int sistema;
+};
+
+struct mutex {
+	char * nombre;
+	int tipo;
+	int proc[MAX_PROC];
+	int procBlq[MAX_PROC];	
 };
 /******************************************************************************************************************/
 
@@ -121,6 +138,12 @@ servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
 										{sis_escribir},
 										{obtener_id_pr},
 										{dormir},
-										{tiempos_proceso}};
+										{tiempos_proceso},
+										{crear_mutex},
+										{abrir_mutex},
+										{lock},
+										{unlock},
+										{cerrar_mutex},
+										{leer_caracter}};
 
 #endif /* _KERNEL_H */
