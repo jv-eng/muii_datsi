@@ -130,16 +130,15 @@ static BCP * planificador(){
  */
 static void liberar_proceso(){
 	BCP * p_proc_anterior;
-
+	
 	liberar_imagen(p_proc_actual->info_mem); /* liberar mapa */
-
+int var_int = fijar_nivel_int(NIVEL_3);
 	p_proc_actual->estado=TERMINADO;
 	eliminar_primero(&lista_listos); /* proc. fuera de listos */
-
+fijar_nivel_int(var_int);
 	/* Realizar cambio de contexto */
 	p_proc_anterior=p_proc_actual;
 	p_proc_actual=planificador();
-
 	printk("-> C.CONTEXTO POR FIN: de %d a %d\n",
 			p_proc_anterior->id, p_proc_actual->id);
 
@@ -179,14 +178,16 @@ static void exc_arit(){
  */
 static void exc_mem(){
 
-	if (!viene_de_modo_usuario())
-		panico("excepcion de memoria cuando estaba dentro del kernel");
-
+	printf("Excepcion de memoria\n");
+	if (!acceso_mapa_user)
+		if (!viene_de_modo_usuario())
+			panico("excepcion");
 
 	printk("-> EXCEPCION DE MEMORIA EN PROC %d\n", p_proc_actual->id);
+	printk("Liberando recursos del proceso\n");
 	liberar_proceso();
 
-        return; /* no deber�a llegar aqui */
+    return; /* no deber�a llegar aqui */
 }
 
 /*
@@ -212,13 +213,13 @@ static void int_reloj(){
 	//printk("-> TRATANDO INT. DE RELOJ\n");
 
 	//obtener primer elemento
-	BCP * actual = lista_listos.primero;	
+	BCP * actual = lista_listos.primero, * tmp;	
 	int nivel_int = 0;
+
 	//actualizr tiempo de uso de cppu por proceso
 	n_ticks_ejec++;
-	while (actual) {
+	if (actual) {
 		if (viene_de_modo_usuario()) actual->n_sec_u++; else actual->n_sec_s++;
-		actual = actual->siguiente;
 	}
 
 	//printf("int = %d\n",n_int); n_int++;
@@ -228,17 +229,16 @@ static void int_reloj(){
 	nivel_int = fijar_nivel_int(NIVEL_3);
 	while (actual) {
 		//printf("nseg = %d\n",actual->nseg_dormir);
-		//actualizar tiempo de uso de cpu
-		if (viene_de_modo_usuario()) actual->n_sec_u++; else actual->n_sec_s++;
 		//decrementar
 		actual->nseg_dormir--;
+		tmp = actual->siguiente;
 		//si hemos llegado a 0, liberamos
 		if (actual->nseg_dormir <= 0) {
 			actual->estado = LISTO;
 			eliminar_elem(&lista_esperando, actual);
 			insertar_ultimo(&lista_listos,actual);
 		}
-		actual = actual->siguiente;
+		actual = tmp;
 	}
 	fijar_nivel_int(nivel_int);
 	return;
@@ -328,7 +328,6 @@ static int crear_tarea(char *prog){
 int sis_crear_proceso(){
 	char *prog;
 	int res;
-
 	printk("-> PROC %d: CREAR PROCESO\n", p_proc_actual->id);
 	prog=(char *)leer_registro(1);
 	res=crear_tarea(prog);
@@ -384,11 +383,6 @@ void cambiar_proceso(lista_BCPs * new_list) {
 	cambio_contexto(&(actual->contexto_regs),&(p_proc_actual->contexto_regs));
 }
 
-void manejador_excep_mem() {
-	printf("Excepcion de memoria, finalizar proceso\n");
-	sis_terminar_proceso();
-}
-
 ////////////////Funcionalidades
 //obtener id de un proceso
 int obtener_id_pr() {
@@ -414,18 +408,15 @@ int leer_caracter() {
 //ver numero de interrupciones de reloj
 int tiempos_proceso() {
 	int nivel_int = 0;
-	//crear manejador para tratar excepciones de memoria
-	instal_man_int(EXC_MEM, manejador_excep_mem);
 	//obtener dato pasado como arg
 	struct tiempos_ejec * t_ejec = (struct tiempos_ejec *)leer_registro(1);
 	//si pasan algo, tratarlo
 	nivel_int = fijar_nivel_int(NIVEL_3);
 	if (t_ejec) {
+		acceso_mapa_user++;
 		t_ejec->usuario = p_proc_actual->n_sec_u;
 		t_ejec->sistema = p_proc_actual->n_sec_s;
-	} else {
-		//si no pasan nada, iniciar
-		n_ticks_ejec = 0;
+		acceso_mapa_user--;
 	}
 	fijar_nivel_int(nivel_int);
 	//printf("usuario: %d\tsistema: %d\n",n_ticks_ejec_u,n_ticks_ejec_s);
@@ -434,16 +425,6 @@ int tiempos_proceso() {
 
 /////////////////////////mutex
 int crear_mutex() { 
-	//obtener argumentos de la llamada
-	char * nombre = (char *)leer_registro(1);
-	int tipo = (int)leer_registro(2);
-
-	//comprobar arg
-	/*if (strlen(nombre) > MAX_NOM_MUT) {
-		printf("Error, nombre del mutex demasiado largo\n");
-		return -1;
-	}*/
-
 	return 0;
 }
 int abrir_mutex() {

@@ -116,6 +116,8 @@ int lock();
 int unlock();
 int cerrar_mutex();
 
+int acceso_mapa_user = 0;
+
 ////////estructuras
 struct tiempos_ejec {
     int usuario;
