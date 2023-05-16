@@ -135,13 +135,13 @@ static void liberar_proceso(){
 int var_int = fijar_nivel_int(NIVEL_3);
 	p_proc_actual->estado=TERMINADO;
 	eliminar_primero(&lista_listos); /* proc. fuera de listos */
-fijar_nivel_int(var_int);
+
 	/* Realizar cambio de contexto */
 	p_proc_anterior=p_proc_actual;
 	p_proc_actual=planificador();
 	printk("-> C.CONTEXTO POR FIN: de %d a %d\n",
 			p_proc_anterior->id, p_proc_actual->id);
-
+fijar_nivel_int(var_int);
 	liberar_pila(p_proc_anterior->pila);
 	cambio_contexto(NULL, &(p_proc_actual->contexto_regs));
         return; /* no deber�a llegar aqui */
@@ -211,10 +211,10 @@ int n_ticks_ejec = 0;
 static void int_reloj(){
 
 	//printk("-> TRATANDO INT. DE RELOJ\n");
-
+	int nivel_int = fijar_nivel_int(NIVEL_3);
 	//obtener primer elemento
 	BCP * actual = lista_listos.primero, * tmp;	
-	int nivel_int = 0;
+	fijar_nivel_int(nivel_int);
 
 	//actualizr tiempo de uso de cppu por proceso
 	n_ticks_ejec++;
@@ -303,9 +303,10 @@ static int crear_tarea(char *prog){
 		//inicializar nuevos campos
 		p_proc->nseg_dormir = 0;
 		//p_proc->tiempo_cpu = 10;
-
+int nivel_int = fijar_nivel_int(NIVEL_3);
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
+fijar_nivel_int(nivel_int);
 		error= 0;
 	}
 	else
@@ -425,7 +426,52 @@ int tiempos_proceso() {
 
 /////////////////////////mutex
 int crear_mutex() { 
-	return 0;
+	//obtener argumentos
+	char *nombre = (char *)leer_registro(1);
+	int tipo = (int)leer_registro(2);
+	int i = 0, desc = -1, pos_m = -1;
+	
+	//comprobar long del nombre
+	if (strlen(nombre) > MAX_NOM_MUT){
+		return -1;
+	}	
+
+	//comprobar n mutex del proc
+	if (p_proc_actual->n_mutex >= NUM_MUT_PROC){
+		return -2;
+	}
+
+	//comprobar nombre unico del mutex
+	for (i = 0; i < NUM_MUT; i++) {
+		if (arr_mutex[i].nombre != NULL && strcmp(arr_mutex[i].nombre,nombre) == 0)
+			return -3;
+	} 
+
+	//comprobar n mutex del sistema
+	while (num_mutex == NUM_MUT) {
+		//dormir hasta que no haya procesos durmiendo	
+	}
+
+	//buscar sitio para el nuevo mutex
+	for (i = 0; pos_m == -1 && i < NUM_MUT; i++) {
+		if (arr_mutex[i].nombre == NULL) {
+			arr_mutex[i].nombre = strdup(nombre);
+			arr_mutex[i].tipo = tipo;
+			arr_mutex[i].proc[p_proc_actual->id] = 1;
+			pos_m = i;
+		}
+	}
+
+	//desc libre para el mutex
+	for (i = 0; desc < 0 && i < NUM_MUT_PROC; i++) {
+		if (p_proc_actual->mutex_proc[i] == NULL) {
+			p_proc_actual->mutex_proc[i] = &(arr_mutex[pos_m]);
+			p_proc_actual->n_mutex++;
+			desc = i;
+		}
+	}
+	
+	return desc;
 }
 int abrir_mutex() {
 	return 0;

@@ -25,6 +25,19 @@
 #include "const.h"
 #include "HAL.h"
 #include "llamsis.h"
+#include "string.h"
+
+////////////////////////MUTEX//////////////////////////////
+typedef struct {
+	char * nombre;
+	int tipo;
+	int proc[MAX_PROC];
+	//int procBlq[MAX_PROC];	
+} mutex;
+
+mutex arr_mutex[NUM_MUT];
+int num_mutex = 0;
+//////////////////////////////////////////////////////////
 
 /*
  *
@@ -47,6 +60,7 @@ typedef struct BCP_t {
 	int n_sec_s; //numero de ticks de reloj en modo sistema
 	int n_sec_u; //numero de ticks de reloj en modo usuario
 	int n_mutex; //numero de mutex
+	mutex * mutex_proc[NUM_MUT_PROC]; //array de mutex
 } BCP;
 
 /*
@@ -122,13 +136,6 @@ int acceso_mapa_user = 0;
 struct tiempos_ejec {
     int usuario;
     int sistema;
-};
-
-struct mutex {
-	char * nombre;
-	int tipo;
-	int proc[MAX_PROC];
-	int procBlq[MAX_PROC];	
 };
 /******************************************************************************************************************/
 
