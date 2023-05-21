@@ -29,10 +29,9 @@
 
 ////////////////////////MUTEX//////////////////////////////
 typedef struct {
-	char * nombre;
-	int tipo;
-	int proc[MAX_PROC];
-	//int procBlq[MAX_PROC];	
+	char * nombre; //nombre del mutex
+	int tipo; //tipo del mutex: recursivo o no recursivo
+	int proc[MAX_PROC]; //lista de procesos con el mutex
 } mutex;
 
 mutex arr_mutex[NUM_MUT];
@@ -61,6 +60,7 @@ typedef struct BCP_t {
 	int n_sec_u; //numero de ticks de reloj en modo usuario
 	int n_mutex; //numero de mutex
 	mutex * mutex_proc[NUM_MUT_PROC]; //array de mutex
+	int blq_mutex; //bloqueado por mutex
 } BCP;
 
 /*
@@ -94,6 +94,7 @@ BCP tabla_procs[MAX_PROC];
  */
 lista_BCPs lista_listos= {NULL, NULL};
 lista_BCPs lista_esperando = {NULL, NULL};
+lista_BCPs lista_espera_mutex = {NULL, NULL};
 
 /*
  *
@@ -116,6 +117,7 @@ int sis_escribir();
 /********************************************Funcionalidades añadidas**********************************************/
 ////////funciones auxiliares
 void cambiar_proceso(lista_BCPs * new_list);
+int nombre_mutex_unico(char * nombre);
 
 ////////funcionalidades
 int obtener_id_pr();
