@@ -140,47 +140,44 @@ static void liberar_proceso(){
 		if (p_proc_actual->mutex_proc[i] != NULL && p_proc_actual->mutex_proc[i]->nombre != NULL) {
 			m_uso = 1;
 			//obtener mutex
-			m = p_proc_actual->mutex_proc[i];
-			//revisar solo si existe mutex
-			if (m->nombre != NULL) {
-				//comprobar si el mutex esta en uso
-				for (j = 0; m_uso == 1 && j < MAX_PROC; j++) {
-					if (j != p_proc_actual->id && m->proc[j] == 1) {
-						//printf("%d\n",m->proc[j]);
-						m_uso = 0;
+			m = p_proc_actual->mutex_proc[i]; 
+			//comprobar si el mutex esta en uso
+			for (j = 0; m_uso == 1 && j < MAX_PROC; j++) {
+				if (j != p_proc_actual->id && m->proc[j] == 1) {
+					m_uso = 0;
+				}
+			}
+			//si no esta en uso, borrarlo
+			if (m_uso == 1) { 
+				//buscar posicion del mutex y borrarlo
+				res = -1; printf("mutex unico proc %s m %s\n",p_proc_actual->mutex_proc[i]->nombre,m->nombre);
+				for (j = 0; res == -1 && j < NUM_MUT; j++) {
+					if (arr_mutex[j].nombre != NULL && strcmp(arr_mutex[j].nombre,m->nombre) == 0) {
+						//printf("hola %d\n",p_proc_actual->id);
+						res = 0; 
+						arr_mutex[j].nombre = NULL;
+						arr_mutex[j].proc[p_proc_actual->id] = 0;
+						num_mutex--;
+						p_proc_actual->n_mutex--;
+						p_proc_actual->mutex_proc[i] = NULL;
 					}
 				}
-				//si no esta en uso, borrarlo
-				if (m_uso) { 
-					//buscar posicion del mutex y borrarlo
-					for (j = 0; res == -1 && j < NUM_MUT; j++) {
-						if (arr_mutex[j].nombre != NULL && strcmp(arr_mutex[j].nombre,m->nombre) == 0) {
-							//printf("hola %d\n",p_proc_actual->id);
-							res = 0;
-							arr_mutex[j].nombre = NULL;
-							arr_mutex[j].proc[p_proc_actual->id] = 0;
-							num_mutex--;
-							p_proc_actual->n_mutex--;
-							p_proc_actual->mutex_proc[i] = NULL;
-						}
-					}
-				} else { //si esta en uso, borrar del proceso
-					m->proc[p_proc_actual->id] = 0;
-					p_proc_actual->n_mutex--;
-					p_proc_actual->mutex_proc[i] = NULL;
-				}
+			} else { //si esta en uso, borrar del proceso
+				//printf("mutex en uso proc %s m %s\n",p_proc_actual->mutex_proc[i]->nombre,m->nombre);
+				m->proc[p_proc_actual->id] = 0;
+				p_proc_actual->n_mutex--;
+				p_proc_actual->mutex_proc[i] = NULL;
+			}
 
-				//comprobar si hay algun proceso dormido esperando por crear un mutex
-				proc = lista_espera_mutex.primero;
-				if (proc && proc->blq_mutex) {
-					res = fijar_nivel_int(NIVEL_3);
-					proc->estado = LISTO;
-					proc->blq_mutex = 0;
-					eliminar_elem(&lista_espera_mutex,proc);
-					insertar_ultimo(&lista_listos,proc);
-					fijar_nivel_int(res); //printf("id proc %d\n",proc->id);
-				}
-
+			//comprobar si hay algun proceso dormido esperando por crear un mutex
+			proc = lista_espera_mutex.primero;
+			if (proc && proc->blq_mutex) {
+				res = fijar_nivel_int(NIVEL_3);
+				proc->estado = LISTO;
+				proc->blq_mutex = 0;
+				eliminar_elem(&lista_espera_mutex,proc);
+				insertar_ultimo(&lista_listos,proc);
+				fijar_nivel_int(res); //printf("id proc %d\n",proc->id);
 			}
 		}
 	} //printf("id %d num_mutex %d\n",p_proc_actual->id,num_mutex);
@@ -615,14 +612,20 @@ int cerrar_mutex() {
 				res = 0;
 				arr_mutex[j].nombre = NULL;
 				arr_mutex[j].proc[p_proc_actual->id] = 0;
+				num_mutex--;
 			}
 		}
-		num_mutex--;
+		//eliminar del proceso
+		p_proc_actual->n_mutex--;
+		p_proc_actual->mutex_proc[desc] = NULL;
+	} else {
+		//el mutex esta en uso, eliminar pos en el mutex y del proc
+		p_proc_actual->mutex_proc[desc]->proc[p_proc_actual->id] = 0;
+		p_proc_actual->n_mutex--;
+		p_proc_actual->mutex_proc[desc] = NULL;
 	}
 
-	//eliminar del proceso
-	p_proc_actual->n_mutex--;
-	p_proc_actual->mutex_proc[desc] = NULL;
+	
 
 	proc = lista_espera_mutex.primero;
 	//comprobar si hay algun proceso bloqueado
