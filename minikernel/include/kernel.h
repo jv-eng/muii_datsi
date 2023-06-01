@@ -66,6 +66,7 @@ typedef struct BCP_t {
 	int mutex_lock; //desc del mutex sobre el que se ha hecho lock
 	int blq_lock; //bloqueado por mutex, espera para lock
 				  //en el caso de no poder hacer lock, guarda
+	int rodaja; //tiempo posible en ejecucion
 } BCP;
 
 /*
@@ -101,6 +102,7 @@ lista_BCPs lista_listos= {NULL, NULL};
 lista_BCPs lista_esperando = {NULL, NULL};
 lista_BCPs lista_espera_mutex = {NULL, NULL};
 lista_BCPs lista_espera_lock = {NULL, NULL};
+lista_BCPs lista_espera_int_terminal = {NULL, NULL};
 
 /*
  *
@@ -139,6 +141,9 @@ int unlock();
 int cerrar_mutex();
 
 int acceso_mapa_user = 0;
+int id_proc_int_sw = -1;
+int num_car_buff = 0;
+char buff_teclado[TAM_BUF_TERM];
 
 ////////estructuras
 struct tiempos_ejec {

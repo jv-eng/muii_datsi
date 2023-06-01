@@ -119,8 +119,40 @@ static void espera_int(){
 static BCP * planificador(){
 	while (lista_listos.primero==NULL)
 		espera_int();		/* No hay nada que hacer */
+	lista_listos.primero->rodaja = TICKS_POR_RODAJA;
 	return lista_listos.primero;
 }
+
+////////////////Funciones auxiliares///////////////////////////////////////////////////////////////
+
+//cambiar proceso en ejecucion
+void cambiar_proceso(lista_BCPs * new_list) {
+	//obtener proceso actual
+	BCP * actual = p_proc_actual;
+	int nivel_int = 0;
+	//mover proceso de lista
+	nivel_int = fijar_nivel_int(NIVEL_3);
+	actual->estado = BLOQUEADO;
+	eliminar_elem(&lista_listos,actual);
+	insertar_ultimo(new_list,actual);
+	//replanificar
+	p_proc_actual = planificador();
+	fijar_nivel_int(nivel_int); //printf("\t\tcambio contexto\n");
+	//cambio de contexto
+	cambio_contexto(&(actual->contexto_regs),&(p_proc_actual->contexto_regs)); 
+}
+
+//devuelve la posicion del mutex o -1
+int nombre_mutex_unico(char * nombre) { 
+	int i, res = -1;
+	for (i = 0; res == -1 && i < NUM_MUT; i++) {
+		if (arr_mutex[i].nombre != NULL && strcmp(arr_mutex[i].nombre,nombre) == 0) {
+			res = i;
+		}
+	}
+	return res; 
+}
+////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
  *
@@ -267,12 +299,36 @@ static void exc_mem(){
  * Tratamiento de interrupciones de terminal
  */
 static void int_terminal(){
+	//variables locales
 	char car;
+	BCP * proc;
+	int nivel_int;
 
+	//leer de terminal
 	car = leer_puerto(DIR_TERMINAL);
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
 
-        return;
+	//si el buffer esta lleno, ignoramos lectura
+	if (num_car_buff == TAM_BUF_TERM) {
+		printf("No se pueden leer caracteres, el buffer esta lleno\n");
+		return;
+	}
+
+	//guardar en buffer
+	buff_teclado[num_car_buff] = car;
+	num_car_buff++;
+
+	//despertar procesos dormidos si hay caracteres en el buffer
+	proc = lista_espera_int_terminal.primero;
+	if (proc) {
+		nivel_int = fijar_nivel_int(NIVEL_3);
+		proc->estado = LISTO;
+		eliminar_elem(&lista_espera_int_terminal, proc);
+		insertar_ultimo(&lista_listos, proc);
+		fijar_nivel_int(nivel_int);
+	}
+
+    return;
 }
 
 //tiempo de ejecucion
@@ -289,10 +345,17 @@ static void int_reloj(){
 	BCP * actual = lista_listos.primero, * tmp;	
 	fijar_nivel_int(nivel_int);
 
-	//actualizr tiempo de uso de cppu por proceso
+	//actualizr tiempo de uso de cpu por proceso y rodajas de cpu
 	n_ticks_ejec++;
 	if (actual) {
 		if (viene_de_modo_usuario()) actual->n_sec_u++; else actual->n_sec_s++;
+		if (actual->rodaja > 1) {
+			actual->rodaja--;
+		} else {
+			id_proc_int_sw = actual->id;
+			actual->rodaja--;
+			activar_int_SW();
+		}
 	}
 
 	//printf("int = %d\n",n_int); n_int++;
@@ -337,6 +400,24 @@ static void tratar_llamsis(){
 static void int_sw(){
 
 	printk("-> TRATANDO INT. SW\n");
+	int tmp = p_proc_actual->id;
+	BCP * proc = p_proc_actual;
+	//si el id no coincide, terminamos
+	if (id_proc_int_sw != p_proc_actual->id) {
+		return;
+	}
+
+	int nivel_int = fijar_nivel_int(NIVEL_3);
+	
+	eliminar_elem(&lista_listos,p_proc_actual);
+	insertar_ultimo(&lista_listos,p_proc_actual);
+	p_proc_actual = planificador();
+	printf("Cambio de %d a %d\n",tmp,p_proc_actual->id);
+
+	fijar_nivel_int(nivel_int);
+	
+	//cambio de contexto
+	cambio_contexto(&(proc->contexto_regs),&(p_proc_actual->contexto_regs)); 
 
 	return;
 }
@@ -371,6 +452,7 @@ static int crear_tarea(char *prog){
 			&(p_proc->contexto_regs));
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
+		p_proc->rodaja = TICKS_POR_RODAJA;
 
 		//inicializar nuevos campos
 		p_proc->nseg_dormir = 0;
@@ -438,36 +520,6 @@ int sis_terminar_proceso(){
 
 //////////////////////////////////////////////FUNCIONALIDADES AÑADIDAS//////////////////////////////////////////////////////
 
-////////////////Funciones auxiliares
-
-//cambiar proceso en ejecucion
-void cambiar_proceso(lista_BCPs * new_list) {
-	//obtener proceso actual
-	BCP * actual = p_proc_actual;
-	int nivel_int = 0;
-	//mover proceso de lista
-	nivel_int = fijar_nivel_int(NIVEL_3);
-	actual->estado = BLOQUEADO;
-	eliminar_elem(&lista_listos,actual);
-	insertar_ultimo(new_list,actual);
-	//replanificar
-	p_proc_actual = planificador();
-	fijar_nivel_int(nivel_int); //printf("\t\tcambio contexto\n");
-	//cambio de contexto
-	cambio_contexto(&(actual->contexto_regs),&(p_proc_actual->contexto_regs)); 
-}
-
-//devuelve la posicion del mutex o -1
-int nombre_mutex_unico(char * nombre) { 
-	int i, res = -1;
-	for (i = 0; res == -1 && i < NUM_MUT; i++) {
-		if (arr_mutex[i].nombre != NULL && strcmp(arr_mutex[i].nombre,nombre) == 0) {
-			res = i;
-		}
-	}
-	return res; 
-}
-
 ////////////////Funcionalidades
 //obtener id de un proceso
 int obtener_id_pr() {
@@ -487,7 +539,24 @@ int dormir() {
 
 //leer un caracter
 int leer_caracter() {
-	return 0;
+	//variables locales
+	int nivel = fijar_nivel_int(NIVEL_2), i;
+	char res;
+
+	//si no hay caracteres, a dormir
+	while (num_car_buff == 0) {
+		cambiar_proceso(&lista_espera_int_terminal); 
+	}
+
+	//obtener resultado y mover caracteres
+	res = buff_teclado[0];
+	num_car_buff--;
+	for (i = 0; i < num_car_buff-1; i++) {
+		buff_teclado[i] = buff_teclado[i+1];
+	}
+
+	fijar_nivel_int(nivel);
+	return res;
 }
 
 //ver numero de interrupciones de reloj
@@ -535,6 +604,7 @@ int crear_mutex() {
 	while (num_mutex == NUM_MUT) {
 		//dormir hasta que no haya procesos durmiendo	
 		p_proc_actual->blq_mutex = 1;
+		if (id_proc_int_sw == p_proc_actual->id) id_proc_int_sw = -1;
 		cambiar_proceso(&lista_espera_mutex); 
 		if (nombre_mutex_unico(nombre) != -1) {
 			return -3;
@@ -699,8 +769,8 @@ int lock() {
 
 	//si esta bloqueado, esperar
 	while (m->proc_blq != -1 && m->proc_blq != p_proc_actual->id) {
-		p_proc_actual->estado = BLOQUEADO;
 		p_proc_actual->blq_lock = desc;
+		if (id_proc_int_sw == p_proc_actual->id) id_proc_int_sw = -1;
 		cambiar_proceso(&lista_espera_lock);
 		//comprobar que sigue existiendo mutex
 		if (m == NULL) {
