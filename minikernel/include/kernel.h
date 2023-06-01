@@ -32,6 +32,8 @@ typedef struct {
 	char * nombre; //nombre del mutex
 	int tipo; //tipo del mutex: recursivo o no recursivo
 	int proc[MAX_PROC]; //lista de procesos con el mutex
+	int proc_blq; //id del proceso que ha bloqueado el mutex
+	int blq_lock; //numero de veces que se ha hecho un lock sobre el mutex; depende de tipo 
 } mutex;
 
 mutex arr_mutex[NUM_MUT];
@@ -60,7 +62,10 @@ typedef struct BCP_t {
 	int n_sec_u; //numero de ticks de reloj en modo usuario
 	int n_mutex; //numero de mutex
 	mutex * mutex_proc[NUM_MUT_PROC]; //array de mutex
-	int blq_mutex; //bloqueado por mutex
+	int blq_mutex; //bloqueado por mutex, espera de crear
+	int mutex_lock; //desc del mutex sobre el que se ha hecho lock
+	int blq_lock; //bloqueado por mutex, espera para lock
+				  //en el caso de no poder hacer lock, guarda
 } BCP;
 
 /*
@@ -95,6 +100,7 @@ BCP tabla_procs[MAX_PROC];
 lista_BCPs lista_listos= {NULL, NULL};
 lista_BCPs lista_esperando = {NULL, NULL};
 lista_BCPs lista_espera_mutex = {NULL, NULL};
+lista_BCPs lista_espera_lock = {NULL, NULL};
 
 /*
  *
