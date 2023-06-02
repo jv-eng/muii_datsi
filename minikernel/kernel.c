@@ -309,7 +309,7 @@ static void int_terminal(){
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
 
 	//si el buffer esta lleno, ignoramos lectura
-	if (num_car_buff == TAM_BUF_TERM) {
+	if (num_car_buff >= TAM_BUF_TERM) {
 		printf("No se pueden leer caracteres, el buffer esta lleno\n");
 		return;
 	}
@@ -414,7 +414,7 @@ static void int_sw(){
 	p_proc_actual = planificador();
 	printf("Cambio de %d a %d\n",tmp,p_proc_actual->id);
 
-	fijar_nivel_int(nivel_int);
+	fijar_nivel_int(nivel_int); 
 	
 	//cambio de contexto
 	cambio_contexto(&(proc->contexto_regs),&(p_proc_actual->contexto_regs)); 
@@ -551,7 +551,7 @@ int leer_caracter() {
 	//obtener resultado y mover caracteres
 	res = buff_teclado[0];
 	num_car_buff--;
-	for (i = 0; i < num_car_buff-1; i++) {
+	for (i = 0; i < num_car_buff; i++) {
 		buff_teclado[i] = buff_teclado[i+1];
 	}
 
