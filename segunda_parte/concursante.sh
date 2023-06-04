@@ -1,4 +1,5 @@
 #!/bin/bash
+#concursante malicioso
 
 make &> /dev/null
 # creo la cuenta del concursante
