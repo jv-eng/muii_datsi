@@ -1,0 +1,1 @@
+cmd_/home/jv/muii_datsi/herramientas/modulos/read_phys_mod/read_phys.mod := printf '%s\n'   read_phys.o | awk '!x[$$0]++ { print("/home/jv/muii_datsi/herramientas/modulos/read_phys_mod/"$$0) }' > /home/jv/muii_datsi/herramientas/modulos/read_phys_mod/read_phys.mod

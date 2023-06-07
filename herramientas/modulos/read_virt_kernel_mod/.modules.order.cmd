@@ -1,0 +1,1 @@
+cmd_/home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/modules.order := {   echo /home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/read_virt_kernel.ko; :; } | awk '!x[$$0]++' - > /home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/modules.order

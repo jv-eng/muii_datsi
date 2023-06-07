@@ -1,0 +1,1 @@
+cmd_/home/jv/muii_datsi/herramientas/modulos/read_phys_mod/modules.order := {   echo /home/jv/muii_datsi/herramientas/modulos/read_phys_mod/read_phys.ko; :; } | awk '!x[$$0]++' - > /home/jv/muii_datsi/herramientas/modulos/read_phys_mod/modules.order

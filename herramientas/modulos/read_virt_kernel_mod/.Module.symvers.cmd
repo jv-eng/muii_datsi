@@ -1,0 +1,1 @@
+cmd_/home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/Module.symvers := sed 's/ko$$/o/' /home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/modules.order | scripts/mod/modpost -m -a  -o /home/jv/muii_datsi/herramientas/modulos/read_virt_kernel_mod/Module.symvers -e -i Module.symvers   -T -
