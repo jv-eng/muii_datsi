@@ -1,0 +1,172 @@
+# Para facilitar la introducción de los distintos mandatos especificados en
+# el enunciado del ejercicio, este fichero, que no es un script, contiene
+# dichos mandatos para permitir el "copia y pega" correspondiente.
+
+# Creación del "disco"
+rm -f miDisco2 # nos aseguramos de que no existía previamente el fichero
+truncate -s 512M miDisco2  # creo un fichero de 512MiB que no ocupa espacio
+
+#-----------------Experimentos con ext2 ------------------------------
+
+# Ejercicio 1: creación del sistema de ficheros
+./cphuecos miDisco2 copia1 4096
+
+mkfs.ext2 -b 4096 -i 8192 -I 256 -O "^sparse_super,^resize_inode" miDisco2 # el experimento
+
+./cmpbl miDisco2 copia1 4096  # muestra qué bloques del disco se han modificado
+
+# Use dumpe2fs para identificar de qué tipo son los bloques identificados
+dumpe2fs miDisco2
+
+# Use debugfs para obtener la información requerida de esos bloques
+# debugfs miDisco2
+# puede usar mandatos de debugfs como stat, bd, testb, testi, icheck o ncheck
+
+#-------------------------------------------------------------------------
+#Ejercicio 2: operación de montaje
+
+dumpe2fs miDisco2 > dmp1
+
+./cphuecos miDisco2 copia2 4096
+
+sudo mount miDisco2 /mnt # el experimento
+
+./cmpbl miDisco2 copia2 4096
+
+dumpe2fs miDisco2 > dmp2
+
+#-------------------------------------------------------------------------
+#Ejercicio 3: creación de un directorio
+
+./cphuecos miDisco2 copia3 4096
+
+sudo mkdir /mnt/DIRECTORIO # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco2 copia3 4096
+
+dumpe2fs miDisco2 > dmp3
+
+#-------------------------------------------------------------------------
+#Ejercicio 4: creación de un fichero vacío
+
+./cphuecos miDisco2 copia4 4096
+
+sudo touch /mnt/DIRECTORIO/FICHERO # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco2 copia4 4096
+
+dumpe2fs miDisco2 > dmp4
+
+#-------------------------------------------------------------------------
+#Ejercicio 5: escritura pequeña en un fichero vacío
+
+./cphuecos miDisco2 copia5 4096
+
+sudo sh -c "echo Hola > /mnt/DIRECTORIO/FICHERO" # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco2 copia5 4096
+
+dumpe2fs miDisco2 > dmp5
+
+#-------------------------------------------------------------------------
+#Ejercicio 6: escritura grande en un fichero
+
+./cphuecos miDisco2 copia6 4096
+
+sudo dd if=/dev/random of=/mnt/DIRECTORIO/FICHERO bs=4K count=1040 # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco2 copia6 4096
+
+dumpe2fs miDisco2 > dmp6
+
+
+#-------------------------------------------------------------------------
+#Final de los ejercicios con ext2: eliminamos todos los recursos
+
+sudo umount /mnt
+
+rm -f miDisco2 dmp? copia?
+
+#-----------------Experimentos con ext3 ------------------------------
+
+# Creación del "disco", del sistema de ficheros y montaje
+
+rm -f miDisco3 # nos aseguramos de que no existía previamente el fichero
+truncate -s 512M miDisco3  # creo un fichero de 512MiB que no ocupa espacio
+
+mkfs.ext3 -b 4096 -i 8192 -I 256 -O "^sparse_super,^resize_inode" miDisco3
+
+sudo mount miDisco3 /mnt
+
+#-------------------------------------------------------------------------
+#Ejercicio 7a: creación de un fichero vacío
+
+./cphuecos miDisco3 copia1 4096
+
+sudo touch /mnt/FICHERO # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco3 copia1 4096
+
+#-------------------------------------------------------------------------
+#Ejercicio 7b: escritura pequeña en un fichero vacío
+
+./cphuecos miDisco3 copia2 4096
+
+sudo sh -c "echo Hola > /mnt/FICHERO" # el experimento
+
+sleep 30 # recuerde que hay que esperar un poco
+
+./cmpbl miDisco3 copia2 4096
+
+#-------------------------------------------------------------------------
+#Final de los ejercicios con ext3: eliminamos todos los recursos
+
+sudo umount /mnt
+
+rm -f miDisco3 copia?
+
+#-----------------Experimentos con ext4 ------------------------------
+
+# Creación del "disco", del sistema de ficheros y montaje
+
+rm -f miDisco4 # nos aseguramos de que no existía previamente el fichero
+truncate -s 1G miDisco4
+mkfs.ext4 miDisco4 # usando opciones por defecto 
+sudo mount miDisco4 /mnt
+
+#-------------------------------------------------------------------------
+#Ejercicio 8: experimentos con extents
+
+sudo dd if=/dev/zero of=/mnt/FICHERO1 bs=4K count=32
+sudo dd if=/dev/zero of=/mnt/FICHERO2 bs=4K count=96K
+sudo dd if=/dev/zero of=/mnt/FICHERO3 bs=4K count=128K
+sudo dd if=/dev/zero of=/mnt/FICHERO4 bs=4K count=1; sudo dd conv=notrunc if=/dev/zero of=/mnt/FICHERO4 bs=4K seek=4 count=1
+
+sleep 30 # recuerde que hay que esperar un poco antes de usar debugfs
+
+#-------------------------------------------------------------------------
+#Ejercicio 9: experimentos con la preasignación
+
+sudo dd if=/dev/zero of=/mnt/F1 bs=4K count=5K
+sudo dd if=/dev/zero of=/mnt/F2 bs=1 count=1 seek=20971519
+sudo truncate -s 20MiB /mnt/F3
+sudo fallocate -l 20MiB /mnt/F4
+
+sleep 30 # recuerde que hay que esperar un poco antes de usar debugfs
+
+#-------------------------------------------------------------------------
+#Final de los ejercicios con ext4: eliminamos todos los recursos
+
+sudo umount /mnt
+
+rm -f miDisco4
