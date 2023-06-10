@@ -98,11 +98,11 @@ BCP tabla_procs[MAX_PROC];
 /*
  * Variable global que representa la cola de procesos listos
  */
-lista_BCPs lista_listos= {NULL, NULL};
-lista_BCPs lista_esperando = {NULL, NULL};
-lista_BCPs lista_espera_mutex = {NULL, NULL};
-lista_BCPs lista_espera_lock = {NULL, NULL};
-lista_BCPs lista_espera_int_terminal = {NULL, NULL};
+lista_BCPs lista_listos= {NULL, NULL}; //procesos listos para ejecutar
+lista_BCPs lista_esperando = {NULL, NULL}; //procesos dormidos
+lista_BCPs lista_espera_mutex = {NULL, NULL}; //procesos espearndo para crear mutex
+lista_BCPs lista_espera_lock = {NULL, NULL}; //procesos esperando para hacer lock
+lista_BCPs lista_espera_int_terminal = {NULL, NULL}; //procesos esperando por caracter
 
 /*
  *

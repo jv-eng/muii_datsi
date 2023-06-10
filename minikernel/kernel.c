@@ -137,7 +137,7 @@ void cambiar_proceso(lista_BCPs * new_list) {
 	insertar_ultimo(new_list,actual);
 	//replanificar
 	p_proc_actual = planificador();
-	fijar_nivel_int(nivel_int); //printf("\t\tcambio contexto\n");
+	fijar_nivel_int(nivel_int);
 	//cambio de contexto
 	cambio_contexto(&(actual->contexto_regs),&(p_proc_actual->contexto_regs)); 
 }
@@ -182,10 +182,9 @@ static void liberar_proceso(){
 			//si no esta en uso, borrarlo
 			if (m_uso == 1) { 
 				//buscar posicion del mutex y borrarlo
-				res = -1; //printf("mutex unico proc %s m %s\n",p_proc_actual->mutex_proc[i]->nombre,m->nombre);
+				res = -1;
 				for (j = 0; res == -1 && j < NUM_MUT; j++) {
 					if (arr_mutex[j].nombre != NULL && strcmp(arr_mutex[j].nombre,m->nombre) == 0) {
-						//printf("hola %d\n",p_proc_actual->id);
 						res = 0; 
 						arr_mutex[j].nombre = NULL;
 						arr_mutex[j].proc[p_proc_actual->id] = 0;
@@ -195,7 +194,6 @@ static void liberar_proceso(){
 					}
 				}
 			} else { //si esta en uso, borrar del proceso
-				//printf("mutex en uso proc %s m %s\n",p_proc_actual->mutex_proc[i]->nombre,m->nombre);
 				m->proc[p_proc_actual->id] = 0;
 				p_proc_actual->n_mutex--;
 				p_proc_actual->mutex_proc[i] = NULL;
@@ -215,7 +213,7 @@ static void liberar_proceso(){
 				proc->blq_mutex = 0;
 				eliminar_elem(&lista_espera_mutex,proc);
 				insertar_ultimo(&lista_listos,proc);
-				fijar_nivel_int(res); //printf("id proc %d\n",proc->id);
+				fijar_nivel_int(res);
 			}
 
 			proc = lista_espera_lock.primero; res = 1;
@@ -232,7 +230,7 @@ static void liberar_proceso(){
 				fijar_nivel_int(i);
 			}
 		}
-	} //printf("id %d num_mutex %d\n",p_proc_actual->id,num_mutex);
+	}
 	
 	//liberar campos proceso
 	liberar_imagen(p_proc_actual->info_mem); /* liberar mapa */
@@ -315,8 +313,10 @@ static void int_terminal(){
 	}
 
 	//guardar en buffer
+	nivel_int = fijar_nivel_int(NIVEL_2);
 	buff_teclado[num_car_buff] = car;
 	num_car_buff++;
+	fijar_nivel_int(nivel_int);
 
 	//despertar procesos dormidos si hay caracteres en el buffer
 	proc = lista_espera_int_terminal.primero;
@@ -357,8 +357,6 @@ static void int_reloj(){
 			activar_int_SW();
 		}
 	}
-
-	//printf("int = %d\n",n_int); n_int++;
 
 	//revisar el resto de procesos esperando
 	actual = lista_esperando.primero;
@@ -457,10 +455,11 @@ static int crear_tarea(char *prog){
 		//inicializar nuevos campos
 		p_proc->nseg_dormir = 0;
 		p_proc->mutex_lock = -1;
-int nivel_int = fijar_nivel_int(NIVEL_3);
+		int nivel_int = fijar_nivel_int(NIVEL_3);
+		
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
-fijar_nivel_int(nivel_int);
+		fijar_nivel_int(nivel_int);
 		error= 0;
 	}
 	else
@@ -573,7 +572,6 @@ int tiempos_proceso() {
 		acceso_mapa_user--;
 	}
 	fijar_nivel_int(nivel_int);
-	//printf("usuario: %d\tsistema: %d\n",n_ticks_ejec_u,n_ticks_ejec_s);
 	return n_ticks_ejec;
 }
 
@@ -599,7 +597,6 @@ int crear_mutex() {
 		return -3;
 	}
 
-	//printf("n mutex %d id %d\n",num_mutex,p_proc_actual->id);
 	//comprobar n mutex del sistema
 	while (num_mutex == NUM_MUT) {
 		//dormir hasta que no haya procesos durmiendo	
@@ -632,10 +629,8 @@ int crear_mutex() {
 			p_proc_actual->mutex_proc[i] = &(arr_mutex[pos_m]);
 			p_proc_actual->n_mutex++;
 			desc = i;
-			//printf("proc crea mutex %d  %s\n",p_proc_actual->id,arr_mutex[pos_m].nombre);
 		}
 	}
-	//printf("mutex %s creado desc %d\n",nombre, desc);
 	return desc;
 }
 
@@ -658,13 +653,11 @@ int abrir_mutex() {
 	//obtener mutex y guardarlo en el BCP
 	for (i = 0; desc == -1 && i < NUM_MUT_PROC; i++) {
 		if (p_proc_actual->mutex_proc[i] == NULL || p_proc_actual->mutex_proc[i]->nombre == NULL) {
-			//printf("id %d new mutex %s\n",p_proc_actual->id,nombre);
 			p_proc_actual->mutex_proc[i] = &(arr_mutex[index]);
 			p_proc_actual->n_mutex++;
 			desc = i;
 		}
 	}
-//printf("mutex %s abierto con desc %d\n",nombre,desc);
 	//actualizar lista del mutex
 	arr_mutex[index].proc[p_proc_actual->id] = 1;
 
@@ -695,7 +688,6 @@ int cerrar_mutex() {
 		//buscar posicion del mutex y borrarlo
 		for (j = 0; res == -1 && j < NUM_MUT; j++) {
 			if (arr_mutex[j].nombre != NULL && strcmp(arr_mutex[j].nombre,p_proc_actual->mutex_proc[desc]->nombre) == 0) {
-				//printf("hola %d %s\n",p_proc_actual->id,arr_mutex[j].nombre);
 				res = 0;
 				arr_mutex[j].nombre = NULL;
 				arr_mutex[j].proc[p_proc_actual->id] = 0;
@@ -809,8 +801,6 @@ int unlock() {
 	//hacer unlock
 	m->blq_lock--;
 	if (m->blq_lock == 0) m->proc_blq = -1;
-	//p_proc_actual->mutex_lock = -1;
-	//printf("id: %d num_blq_lock: %d\n",p_proc_actual->id, m->blq_lock);
 
 	//despertar procesos esperando
 	if (m->proc_blq == -1) {
