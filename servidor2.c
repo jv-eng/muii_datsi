@@ -22,10 +22,10 @@ static int crea_socket(int puerto) {
 		perror("error creando socket");
 		return -1;
 	}
-        if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opcion, sizeof(opcion))<0){
-                perror("error en setsockopt");
-                return -1;
-        }
+	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opcion, sizeof(opcion))<0){
+			perror("error en setsockopt");
+			return -1;
+	}
 	dir.sin_addr.s_addr=INADDR_ANY;
 	dir.sin_port=htons(puerto);
 	dir.sin_family=PF_INET;
@@ -63,10 +63,10 @@ int main(int argc, char *argv[]) {
 
 	// AQUÍ: En este punto del programa debería determinar qué servicio (setuid o seteuid) debería usar para realizar el desescalado definitivo y cuál para hacerlo solo de forma temporal
 
-	if (temp) {
-
-	} else {
-
+	if (temp) { //desescalado temporal
+		setuid(uid_real);
+	} else { //desescalado permanente
+		seteuid(uid_real);
 	}
 
 	print_uids("\nDegradado");

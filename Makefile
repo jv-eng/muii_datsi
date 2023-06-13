@@ -1,5 +1,5 @@
 CFLAGS=-Wall
-#LDLIBS=-lcap
+LDLIBS=-lcap
 
 all: servidor1 servidor2 servidor3
 
