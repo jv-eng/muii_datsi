@@ -6,4 +6,8 @@ A continuación, se listan lass distintas asignaturas con sus proyectos correspp
     -   Proyecto: programación de un driver de audio para Linux (seu_proyecto_driver)
     -   Práctica: programación de dispositivos (seu_prac_prog_dispositivos)
 -   Sistemas operativos avanzados    
-    -   Proyecto: minikernel (minikernel)
+    -   Proyecto: minikernel (minikernel, minikernel_v2)
+    -   Ejercicio teórico: planificación (soa_ej_planificacion)
+    -   Ejercicio teórico: memoria (soa_ej_memoria)
+    -   Ejercicio teórico: ficheros (soa_ej_ficheros)
+    -   Ejercicio teórico: interbloqueos (soa_ej_interbloqueos)
