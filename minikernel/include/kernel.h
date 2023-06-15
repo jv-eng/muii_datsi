@@ -126,6 +126,7 @@ int sis_escribir();
 ////////funciones auxiliares
 void cambiar_proceso(lista_BCPs * new_list);
 int nombre_mutex_unico(char * nombre);
+void eliminar_mutex(BCP * proc_actual, int desc, int flag);
 
 ////////funcionalidades
 int obtener_id_pr();
